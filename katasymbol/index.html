@@ -4,79 +4,146 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Katasymbol label printer</title>
+<script>
+  const themeStorageKey = "katasymbol-theme";
+  try {
+    if (localStorage.getItem(themeStorageKey) === "light") {
+      document.documentElement.dataset.theme = "light";
+    }
+  } catch (error) {
+    console.warn("Could not load the theme preference.", error);
+  }
+</script>
 <style>
   :root {
-    color-scheme: light;
+    color-scheme: dark;
     font: 100%/1.5 system-ui, sans-serif;
-    color: #182421;
-    background: #edf2ef;
+    color: var(--text);
+    background: var(--page);
+    --text: #e4ede8;
+    --page: #101815;
+    --surface: #1b2823;
+    --muted: #b2c3ba;
+    --line: #36483f;
+    --accent: #8dd8bb;
+    --on-accent: #10251c;
+    --input-border: #6b8277;
+    --button-border: #6b8277;
+    --focus: #8dd8bb;
+    --status: #24362e;
+    --error-background: #402721;
+    --error-text: #ffb9a8;
+    --preview-background: #141e1a;
+    --preview-track: #25362e;
+    --preview-ruler: #afc4b8;
+    --preview-mark: #409c80;
+    --shadow: #0005;
+    --backdrop: #0009;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --text: #182421;
+    --page: #edf2ef;
+    --surface: #fff;
     --muted: #53625a;
     --line: #d5dfd9;
     --accent: #175744;
+    --on-accent: #fff;
+    --input-border: #a9b7af;
+    --button-border: #9fb8ae;
+    --focus: #3f997c;
+    --status: #eff5f1;
+    --error-background: #fff0eb;
+    --error-text: #8d3425;
+    --preview-background: #e8eeea;
+    --preview-track: #f4f7f5;
+    --preview-ruler: #536d61;
+    --preview-mark: #175744;
+    --shadow: #243d3010;
+    --backdrop: #18242180;
   }
   * { box-sizing: border-box; }
   body { margin: 0; }
-  main { width: min(100% - 2rem, 48rem); margin: clamp(2rem, 8vw, 5rem) auto; }
+  main { width: min(100% - 2rem, 48rem); margin: 1rem auto clamp(2rem, 8vw, 5rem); }
+  .page-tools { text-align: right; margin-bottom: .75rem; }
+  .page-tools .secondary { width: auto; }
   .panel {
     padding: clamp(1.15rem, 5vw, 1.75rem);
-    background: #fff; border: 1px solid var(--line); border-radius: 1rem;
-    box-shadow: 0 14px 32px #243d3010;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 1rem;
+    box-shadow: 0 14px 32px var(--shadow);
   }
-  label { display: block; font-weight: 650; margin-bottom: .4rem; }
+  label, #connection-identity { font-weight: 650; }
+  label { display: block; margin-bottom: .4rem; }
   .row { display: flex; gap: .65rem; }
   select, input, textarea, button {
     min-height: 2.85rem; border-radius: .55rem; font: inherit;
   }
-  select, input, textarea { min-width: 0; width: 100%; border: 1px solid #a9b7af; color: inherit; background-color: #fff; padding: .55rem .75rem; }
+  select, input, textarea { min-width: 0; width: 100%; border: 1px solid var(--input-border); color: inherit; background-color: var(--surface); padding: .55rem .75rem; }
   textarea { display: block; resize: vertical; }
   select {
     flex: 1; appearance: none; padding-right: 2rem;
-    background-image: linear-gradient(45deg, transparent 50%, #52625a 50%), linear-gradient(135deg, #52625a 50%, transparent 50%);
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
     background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
     background-size: 5px 5px; background-repeat: no-repeat;
   }
   button { padding: .55rem .9rem; cursor: pointer; font-weight: 650; }
-  .secondary { color: var(--accent); background: #fff; border: 1px solid #9fb8ae; }
-  .secondary[aria-pressed="true"] { color: #fff; background: var(--accent); }
-  .primary { color: #fff; background: var(--accent); border: 1px solid var(--accent); width: 100%; margin-top: 1rem; }
+  .secondary { color: var(--accent); background: var(--surface); border: 1px solid var(--button-border); }
+  .secondary[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+  .primary { color: var(--on-accent); background: var(--accent); border: 1px solid var(--accent); width: 100%; margin-top: 1rem; }
+  .connection-row { display: flex; align-items: center; gap: .5rem; }
+  #connect { flex: none; width: auto; padding-inline: .7rem; font-size: .875rem; }
+  #connect[data-connected] { color: #fff; background: #a92d31; border-color: #a92d31; }
+  #connection-identity { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .connection-row .checkbox-option { flex: none; margin: 0; white-space: nowrap; }
   button:enabled:hover { filter: brightness(.93); }
   button:disabled { cursor: default; opacity: .55; }
-  :focus-visible { outline: 3px solid #3f997c; outline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   .hint, .status, figcaption { color: var(--muted); font-size: .875rem; }
   .hint { margin: .65rem 0 0; }
   .checkbox-option { display: flex; align-items: center; gap: .45rem; margin: .55rem 0 0; font-size: .875rem; font-weight: 400; }
   .checkbox-option[hidden] { display: none; }
   .checkbox-option input { width: auto; min-height: 0; margin: 0; accent-color: var(--accent); }
-  .status { margin: .75rem 0 0; padding: .6rem .75rem; background: #eff5f1; border-radius: .45rem; overflow-wrap: anywhere; }
-  .status[data-kind="error"] { background: #fff0eb; color: #8d3425; }
+  .status { margin: .75rem 0 0; padding: .6rem .75rem; background: var(--status); border-radius: .45rem; overflow-wrap: anywhere; }
+  .status[data-kind="error"] { background: var(--error-background); color: var(--error-text); }
   #label-form { border-top: 1px solid var(--line); padding-top: 1.2rem; margin-top: 1.2rem; }
   .editor-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; margin-top: .75rem; }
   .element-tools { display: flex; flex: 1 0 100%; flex-wrap: wrap; gap: .4rem; }
   .element-tools .secondary { display: grid; place-items: center; width: 2.85rem; padding: 0; }
+  .element-tools .checkbox-option { margin: 0 0 0 .35rem; min-height: 2.85rem; }
   .element-tools svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .item-picker { flex: 1 1 12rem; min-width: 0; }
-  .item-actions { display: flex; gap: .65rem; }
-  .item-actions .secondary { width: auto; }
-  .line-settings { margin-top: .75rem; max-width: 12rem; }
-  .label-files { margin-top: 1rem; flex-wrap: wrap; }
+  .item-picker { flex: 1 1 6rem; min-width: 0; }
+  .item-actions { display: flex; gap: clamp(.35rem, 1.5vw, .65rem); }
+  .item-actions .secondary { width: auto; padding-inline: clamp(.45rem, 2vw, .9rem); }
+  .label-files { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: 1rem; }
+  .label-files label { margin: 0; }
+  .label-files input[type="text"] { flex: 1 1 8rem; width: auto; }
+  .label-files .secondary { width: auto; }
   figure { margin: 1rem 0 0; }
-  .preview-layout {
-    display: grid; grid-template-columns: clamp(3.25rem, 15%, 6rem) minmax(0, 1fr) clamp(3.25rem, 15%, 6rem);
-    align-items: center; gap: clamp(.35rem, 1.5vw, .75rem);
+  .preview-margins {
+    display: grid; grid-template-columns: auto minmax(0, 5rem) minmax(0, 1fr) minmax(0, 5rem);
+    align-items: center; gap: clamp(.35rem, 1.5vw, .75rem); margin-top: .5rem;
   }
-  .margin-control label { font-size: .8rem; line-height: 1.25; }
-  .margin-control input { padding-inline: .25rem; text-align: center; }
-  .preview { max-height: min(50vh, 24rem); overflow: auto; overflow-anchor: none; background: #e8eeea; border-radius: .6rem; }
+  .preview-margins span { font-size: .875rem; font-weight: 650; }
+  .preview-margins input { padding-inline: .25rem; text-align: center; }
+  #right-margin { grid-column: 4; }
+  .preview { max-height: min(50vh, 24rem); overflow: auto; overflow-anchor: none; background: var(--preview-background); border-radius: .6rem; }
+  #preview-scroll {
+    width: 100%; min-height: 2.75rem; margin: 0; padding: 0; border: 0;
+    background: transparent; accent-color: var(--accent); cursor: ew-resize; touch-action: pan-y;
+  }
+  #preview-scroll:not([hidden]) { display: block; }
   canvas { display: block; cursor: grab; touch-action: none; }
   canvas:focus-visible { outline-offset: -3px; }
   canvas:active { cursor: grabbing; }
   #preview[data-tool="line"] { cursor: crosshair; }
   figcaption { margin-top: .4rem; }
   .inspector { margin-top: 1rem; }
-  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr)); gap: .65rem; margin: .65rem 0; }
+  .inspector[data-no-selection] > :not(.fields),
+  .inspector[data-no-selection] .fields > :not(#line-settings) { display: none; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr)); align-items: end; gap: .65rem; margin: .65rem 0; }
   .fields > div { min-width: 0; }
-  dialog { width: min(100% - 2rem, 28rem); padding: 1.25rem; border: 1px solid var(--line); border-radius: .85rem; color: inherit; }
-  dialog::backdrop { background: #18242180; }
+  dialog { width: min(100% - 2rem, 28rem); padding: 1.25rem; border: 1px solid var(--line); border-radius: .85rem; color: inherit; background: var(--surface); }
+  dialog::backdrop { background: var(--backdrop); }
   dialog h2 { margin: 0 0 .75rem; }
   dialog a { color: var(--accent); }
   dialog .row { margin-top: .75rem; }
@@ -87,30 +154,31 @@
   .graphic-preview canvas {
     flex: none; margin: auto; background: #fff; image-rendering: pixelated; cursor: default; touch-action: auto;
   }
+  @media (max-width: 400px) {
+    .editor-toolbar { column-gap: .45rem; }
+    .item-picker { flex-basis: 5.5rem; }
+    .item-actions .secondary { font-size: .875rem; }
+  }
   @media (max-width: 350px) { .row { flex-wrap: wrap; } .secondary { width: 100%; } }
 </style>
 </head>
 <body>
 <main>
+  <div class="page-tools">
+    <button id="theme-toggle" class="secondary" type="button" hidden>Light mode</button>
+  </div>
   <section class="panel" aria-label="Printer and label">
-    <label for="connection">Supvan / Katasymbol printer type</label>
-    <div class="row">
-      <select id="connection" aria-describedby="connection-help">
-        <option value="e16-ble" selected>E16 · Bluetooth LE</option>
-        <option value="e10-ble">E10 · Bluetooth LE</option>
-      </select>
+    <div class="connection-row">
+      <span id="connection-identity" role="status">Connected: none</span>
       <button id="connect" class="secondary" type="button">Connect</button>
+      <label class="checkbox-option" title="Include nearby devices that do not match known E10 or E16 Bluetooth names">
+        <input id="scan-all" type="checkbox" aria-label="Show all BLE devices"> Show all
+      </label>
     </div>
-    <p id="connection-help" class="hint">Use Chrome and power on the printer.</p>
-    <label id="scan-option" class="checkbox-option" hidden>
-      <input id="scan-all" type="checkbox"> Show all nearby BLE devices
-    </label>
-    <p id="status" class="status" role="status" aria-live="polite">Printer disconnected.</p>
+    <p id="connection-error" class="status" data-kind="error" role="alert" hidden></p>
     <form id="label-form" novalidate>
-      <label for="design-name">Label design name</label>
-      <input id="design-name" type="text">
       <div class="editor-toolbar">
-        <div class="element-tools" role="group" aria-label="Add label elements">
+        <div class="element-tools" role="group" aria-label="Label tools">
           <button id="add-text" class="secondary" type="button" aria-label="Add text" title="Add text">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V4h14v3M12 4v16m-4 0h8"/></svg>
           </button>
@@ -129,6 +197,9 @@
           <button id="add-ellipse" class="secondary" type="button" aria-label="Add circle or ellipse" title="Add circle or ellipse">
             <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>
           </button>
+          <label class="checkbox-option" title="Invert black and white for the entire label">
+            <input id="label-invert" type="checkbox"> Invert
+          </label>
         </div>
         <div class="item-picker">
           <label for="label-items">Selected item</label>
@@ -137,23 +208,16 @@
         <div class="item-actions">
           <button id="copy-item" class="secondary" type="button" disabled>Copy</button>
           <button id="paste-item" class="secondary" type="button" disabled>Paste</button>
+          <button id="remove-item" class="secondary" type="button" disabled>Remove</button>
         </div>
       </div>
-      <div id="line-settings" class="line-settings" hidden>
-        <label for="line-width">Line width (mm)</label>
-        <input id="line-width" type="number" min="0.125" max="11" step="0.125" value="0.5" inputmode="decimal">
-      </div>
       <figure>
-        <div class="preview-layout">
-          <div class="margin-control">
-            <label for="left-margin">Left margin (px)</label>
-            <input id="left-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric">
-          </div>
-          <div class="preview"><canvas id="preview" width="320" height="176" tabindex="0" role="img" aria-label="Label editor"></canvas></div>
-          <div class="margin-control">
-            <label for="right-margin">Right margin (px)</label>
-            <input id="right-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric">
-          </div>
+        <div id="preview-viewport" class="preview"><canvas id="preview" width="320" height="176" tabindex="0" role="img" aria-label="Label editor"></canvas></div>
+        <input id="preview-scroll" type="range" min="0" max="0" value="0" step="1" aria-label="Scroll label preview horizontally" aria-controls="preview-viewport" hidden>
+        <div class="preview-margins" role="group" aria-labelledby="margins-heading">
+          <span id="margins-heading">Margins</span>
+          <input id="left-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric" aria-label="Left margin (px)">
+          <input id="right-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric" aria-label="Right margin (px)">
         </div>
         <figcaption id="dimensions" aria-live="polite"></figcaption>
       </figure>
@@ -166,6 +230,10 @@
           <input id="item-invert" type="checkbox"> Invert black and white
         </label>
         <div class="fields">
+          <div id="line-settings" hidden>
+            <label for="line-width">Line thickness (mm)</label>
+            <input id="line-width" type="number" min="0.125" max="12" step="0.125" value="0.5" inputmode="decimal">
+          </div>
           <div class="text-style">
             <label for="text-font">Font</label>
             <select id="text-font">
@@ -211,15 +279,17 @@
             <input id="item-y" type="number" step="0.125" inputmode="decimal">
           </div>
         </div>
-        <button id="remove-item" class="secondary" type="button">Remove item</button>
       </div>
-      <div class="item-actions label-files">
-        <button id="import-label" class="secondary" type="button">Open label JSON</button>
-        <button id="export-label" class="secondary" type="button">Export JSON</button>
+      <button id="print" class="primary" type="submit" disabled>Print label</button>
+      <p id="print-status" class="status" role="status" hidden></p>
+      <div class="label-files">
+        <label for="design-name">Project name</label>
+        <input id="design-name" type="text">
+        <button id="export-label" class="secondary" type="button">Export</button>
+        <button id="import-label" class="secondary" type="button">Import</button>
         <input id="label-file" type="file" accept=".json,application/json" hidden>
       </div>
       <p id="label-file-status" class="status" role="status" hidden></p>
-      <button id="print" class="primary" type="submit" disabled>Print label</button>
     </form>
   </section>
   <dialog id="icon-dialog" aria-labelledby="icon-heading">
@@ -3024,8 +3094,13 @@ const gattProfiles = [
   [bluetoothUuid("18f0"), "2af1", "2af0"],
   [bluetoothUuid("fee7"), "fec1", "fec1"],
 ];
-const e10Prefixes = "E10,SUPVAN E10,Supvan E10,Katasymbol E10,KATASYMBOL E10,T0007,T0010,T0011,T0012,T0017,T0025,T0026,T0027,T0028,T0034,T0035,T0036,T0037,T0038,T0039,T0040,T0041,T0042,T0043,T0044,T0045,T0057,T0058,T0059,T0060,T0061,T0064,T0065,T0066,T0067,T0068,T0071,T0072,T0073,T0075,T0077,T0078,T0081,T0082,T0083,T0084,T0085,T0086,T0087,T0088,T0089,T0090,T0091,T0092,T0093,T0094,T0095,T0098,T0124,T0125,T0126,T0127,T0130,T0131,T0132,T0133,T0134,T0135,T0136,T0137,T0143,T0144,T0176,T0177,T0179,T0180,T0207,T0208,T0209,T0210".split(",");
-const e16Prefixes = "T0053,T0054,T0055,T0105,T0106,T0107,T0122,T0123".split(",");
+const printerSerialPrefixes = {
+  E10: "T0007,T0010,T0011,T0012,T0017,T0025,T0026,T0027,T0028,T0034,T0035,T0036,T0037,T0038,T0039,T0040,T0041,T0042,T0043,T0044,T0045,T0057,T0058,T0059,T0060,T0061,T0064,T0065,T0066,T0067,T0068,T0071,T0072,T0073,T0075,T0077,T0078,T0081,T0082,T0083,T0084,T0085,T0086,T0087,T0088,T0089,T0090,T0091,T0092,T0093,T0094,T0095,T0098,T0124,T0125,T0126,T0127,T0130,T0131,T0132,T0133,T0134,T0135,T0136,T0137,T0143,T0144,T0176,T0177,T0179,T0180,T0207,T0208,T0209,T0210".split(","),
+  E16: "T0053,T0054,T0055,T0105,T0106,T0107,T0122,T0123".split(","),
+};
+const printerNameFilters = Object.entries(printerSerialPrefixes).flatMap(([model, serialPrefixes]) => [
+  ...serialPrefixes, model, `SUPVAN ${model}`, `Supvan ${model}`, `Katasymbol ${model}`, `KATASYMBOL ${model}`,
+].map((namePrefix) => ({ namePrefix })));
 const CMD = {
   commit: 0x10, status: 0x11, check: 0x12, start: 0x13,
   material: 0x30, bulk: 0x5c, back: 0xba, density: 0xc9,
@@ -3042,8 +3117,9 @@ const put16 = (bytes, offset, value) => {
 };
 const get16 = (bytes, offset) => bytes[offset] + 256 * bytes[offset + 1];
 const DOTS_PER_MM = 8;
-const TAPE_HEIGHT = 96;
-const EDGE_MARGIN = 4;
+const PRINTABLE_HEIGHT = 12 * DOTS_PER_MM;
+const TAPE_HEIGHT = 16 * DOTS_PER_MM;
+const TAPE_MARGIN = (TAPE_HEIGHT - PRINTABLE_HEIGHT) / 2;
 const FEED_LEAD_IN = 48;
 const MAX_BLOCK_COLUMNS = 332;
 
@@ -3194,27 +3270,27 @@ class PrinterChannel {
   }
 }
 
-function checkModel(name, model) {
-  const upper = name.toUpperCase();
-  const isE16 = /(?:^|[\s_-])E16/.test(upper) || e16Prefixes.some((prefix) => upper.startsWith(prefix));
-  const isE10 = /(?:^|[\s_-])E10/.test(upper) || e10Prefixes.some((prefix) => upper.startsWith(prefix));
-  if ((model === "E10" && isE16) || (model === "E16" && isE10)) {
-    throw new Error("The selected connection mode does not match " + name + ".");
+function detectPrinterModel(name) {
+  if (!name) throw new Error("The selected Bluetooth device did not provide a name. Choose an E10 or E16 printer.");
+  const upper = name.toUpperCase().trim();
+  const matches = new Set(Array.from(upper.matchAll(/(?:^|[\s_-])(E10|E16)(?!\d)/g), ([, model]) => model));
+  for (const [model, prefixes] of Object.entries(printerSerialPrefixes)) {
+    if (prefixes.some((prefix) => upper.startsWith(prefix))) matches.add(model);
   }
+  if (matches.size !== 1) throw new Error(`Could not identify "${name}" as an E10 or E16 printer from its Bluetooth name.`);
+  return matches.values().next().value;
 }
 
-async function openBle(model, scanAll, onLost) {
-  const prefixes = model === "E16"
-    ? [...e16Prefixes, "E16", "SUPVAN E16", "Supvan E16", "Katasymbol E16", "KATASYMBOL E16"]
-    : e10Prefixes;
+async function openBle(scanAll, onLost) {
   const discovery = scanAll
     ? { acceptAllDevices: true }
-    : { filters: prefixes.map((namePrefix) => ({ namePrefix })) };
+    : { filters: printerNameFilters };
   const device = await navigator.bluetooth.requestDevice({
     ...discovery,
     optionalServices: gattProfiles.map(([uuid]) => uuid),
   });
-  checkModel(device.name || "", model);
+  const name = device.name;
+  const model = detectPrinterModel(name);
   let transport;
   try {
     const server = await device.gatt.connect();
@@ -3237,7 +3313,8 @@ async function openBle(model, scanAll, onLost) {
       };
       const disconnected = () => onLost(transport);
       transport = {
-        name: device.name || model,
+        displayName: name,
+        model,
         closed: false,
         async write(bytes) {
           if (this.closed || !server.connected) throw new Error("Printer disconnected.");
@@ -3257,7 +3334,7 @@ async function openBle(model, scanAll, onLost) {
       notify.addEventListener("characteristicvaluechanged", notification);
       return transport;
     }
-    throw new Error((device.name || model) + " was found, but none of its known print services opened over Bluetooth LE.");
+    throw new Error(name + " was found, but none of its known print services opened over Bluetooth LE.");
   } catch (error) {
     if (device.gatt?.connected) device.gatt.disconnect();
     throw error;
@@ -3343,19 +3420,20 @@ async function sendLabel(connection, image, leftMargin, setStatus, jobStarted) {
     20000, "The printer did not confirm completion.");
 }
 
-const mode = document.querySelector("#connection");
 const connectButton = document.querySelector("#connect");
-const connectionHelp = document.querySelector("#connection-help");
-const scanOption = document.querySelector("#scan-option");
+const connectionIdentity = document.querySelector("#connection-identity");
+const connectionError = document.querySelector("#connection-error");
 const scanAll = document.querySelector("#scan-all");
-const statusBox = document.querySelector("#status");
 const labelForm = document.querySelector("#label-form");
+const labelInvert = document.querySelector("#label-invert");
 const designNameInput = document.querySelector("#design-name");
 const labelInput = document.querySelector("#label-text");
 const printButton = document.querySelector("#print");
+const printStatus = document.querySelector("#print-status");
 const itemPicker = document.querySelector("#label-items");
 const copyButton = document.querySelector("#copy-item");
 const pasteButton = document.querySelector("#paste-item");
+const removeButton = document.querySelector("#remove-item");
 const drawLineButton = document.querySelector("#draw-line");
 const lineSettings = document.querySelector("#line-settings");
 const lineWidthLabel = document.querySelector('label[for="line-width"]');
@@ -3381,20 +3459,18 @@ const margins = { left: leftMarginInput.valueAsNumber, right: rightMarginInput.v
 const dimensions = document.querySelector("#dimensions");
 const canvas = document.querySelector("#preview");
 const viewport = canvas.parentElement;
+const previewScroll = document.querySelector("#preview-scroll");
 const ctx = canvas.getContext("2d");
 const artwork = document.createElement("canvas");
-artwork.height = TAPE_HEIGHT;
+artwork.height = PRINTABLE_HEIGHT;
 const ink = artwork.getContext("2d", { willReadFrequently: true });
 const WORKSPACE_X = 64;
 const WORKSPACE_Y = 40;
 const MAX_PREVIEW_PIXELS = 16 * 1024 * 1024;
 const MAX_ARTWORK_WIDTH = 16000;
-const PRINTABLE_HEIGHT = TAPE_HEIGHT - 2 * EDGE_MARGIN;
 const DOTS_PER_CM = 10 * DOTS_PER_MM;
 const MIN_ITEM_HEIGHT = 4;
 const MAX_ITEM_HEIGHT = 512;
-const MIN_ITEM_X = -192;
-const MAX_ITEM_Y = TAPE_HEIGHT + MAX_ITEM_HEIGHT;
 const DEFAULT_LINE_WIDTH = 4;
 const HANDLE_OFFSET = 3;
 const HANDLE_SIZE = 8;
@@ -3426,15 +3502,19 @@ let scrollFrame = 0;
 let connection = null;
 let working = false;
 
-function showStatus(message, kind = "") {
-  statusBox.textContent = message;
-  statusBox.dataset.kind = kind;
+function showConnectionError(message = "") {
+  connectionError.hidden = !message;
+  connectionError.textContent = message;
+}
+
+function showPrintStatus(message, kind = "") {
+  printStatus.hidden = !message;
+  printStatus.textContent = message;
+  printStatus.dataset.kind = kind;
 }
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const toMillimetres = (dots) => dots / DOTS_PER_MM;
-const maxX = (item) => MAX_ARTWORK_WIDTH - item.layout.width;
-const minY = (item) => -Math.max(MAX_ITEM_HEIGHT, item.layout.height);
 const fitHeight = (height, aspectRatio) => Math.min(height, Math.floor(MAX_ARTWORK_WIDTH / aspectRatio));
 const isShape = (item) => item?.kind === "rectangle" || item?.kind === "ellipse";
 const maxShapeLineWidth = (width, height) => Math.min(PRINTABLE_HEIGHT, Math.floor((Math.min(width, height) - 1) / 2));
@@ -3606,9 +3686,31 @@ const itemLayouts = {
   rectangle: shapeLayout, ellipse: shapeLayout,
 };
 
+function placementLimits({ layout }) {
+  const { width, height, endpoints } = layout;
+  if (endpoints) {
+    const [start, end] = endpoints;
+    return {
+      minX: -Math.min(start.x, end.x), maxX: MAX_ARTWORK_WIDTH - Math.max(start.x, end.x),
+      minY: -Math.min(start.y, end.y), maxY: PRINTABLE_HEIGHT - Math.max(start.y, end.y),
+    };
+  }
+  return {
+    minX: -width / 2, maxX: MAX_ARTWORK_WIDTH - width / 2,
+    minY: -height / 2, maxY: PRINTABLE_HEIGHT - height / 2,
+  };
+}
+
 function placeItem(item, x = item.x, y = item.y) {
-  item.x = clamp(Math.round(x), MIN_ITEM_X, maxX(item));
-  item.y = clamp(Math.round(y), minY(item), MAX_ITEM_Y);
+  const { minX, maxX, minY, maxY } = placementLimits(item);
+  // Odd-width strokes can have half-dot origins while their anchors stay on whole dots.
+  const step = item.layout.endpoints ? 1 : .5;
+  item.x = clamp(minX + step * Math.round((x - minX) / step), minX, maxX);
+  item.y = clamp(minY + step * Math.round((y - minY) / step), minY, maxY);
+}
+
+function verticalLineDelta({ dx, dy }, rotation) {
+  return rotation % 180 ? dx : dy;
 }
 
 function rotateLayout(layout, rotation) {
@@ -3650,7 +3752,7 @@ function drawItems(context, entries, offsetX, offsetY) {
 
 function renderArtwork() {
   const printable = items.filter(({ x, y, layout }) => layout.draw && x + layout.width > 0
-    && y < TAPE_HEIGHT - EDGE_MARGIN && y + layout.height > EDGE_MARGIN);
+    && x < MAX_ARTWORK_WIDTH && y < PRINTABLE_HEIGHT && y + layout.height > 0);
   if (!printable.length) return null;
   const { left: leftMargin, right: rightMargin } = margins;
   // Leave one spare dot outside the layout estimates for antialiasing.
@@ -3659,23 +3761,25 @@ function renderArtwork() {
     left = Math.min(left, item.x - 1);
     right = Math.max(right, item.x + item.layout.width + 1);
   }
+  right = Math.min(MAX_ARTWORK_WIDTH, Math.ceil(right));
+  left = Math.floor(left);
   const origin = Math.max(0, left) - leftMargin;
   const width = right - origin + rightMargin;
   if (artwork.width !== width) artwork.width = width;
   ink.fillStyle = "#fff";
-  ink.fillRect(0, 0, width, TAPE_HEIGHT);
+  ink.fillRect(0, 0, width, PRINTABLE_HEIGHT);
   ink.save();
   ink.beginPath();
   const clipX = Math.max(0, -origin);
-  ink.rect(clipX, EDGE_MARGIN, width - clipX, PRINTABLE_HEIGHT);
+  ink.rect(clipX, 0, right - origin - clipX, PRINTABLE_HEIGHT);
   ink.clip();
   ink.fillStyle = "#000";
   drawItems(ink, printable, -origin, 0);
   ink.restore();
 
-  const pixels = ink.getImageData(0, 0, width, TAPE_HEIGHT);
+  const pixels = ink.getImageData(0, 0, width, PRINTABLE_HEIGHT);
   let first = width, last = -1;
-  for (let y = EDGE_MARGIN; y < TAPE_HEIGHT - EDGE_MARGIN; y++) {
+  for (let y = 0; y < PRINTABLE_HEIGHT; y++) {
     for (let x = leftMargin; x < width - rightMargin; x++) {
       const i = 4 * (y * width + x);
       const gray = .3 * pixels.data[i] + .59 * pixels.data[i + 1] + .11 * pixels.data[i + 2];
@@ -3688,11 +3792,22 @@ function renderArtwork() {
     }
   }
   if (last === -1) return null;
+  const sourceX = first - leftMargin;
+  const labelWidth = last - first + 1 + leftMargin + rightMargin;
+  // Crop to the normal artwork bounds before inverting so the label keeps its size.
+  if (labelInvert.checked) {
+    for (let y = 0; y < PRINTABLE_HEIGHT; y++) {
+      for (let x = sourceX; x < sourceX + labelWidth; x++) {
+        const i = 4 * (y * width + x);
+        pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = 255 - pixels.data[i];
+      }
+    }
+  }
   ink.putImageData(pixels, 0, 0);
   return {
-    sourceX: first - leftMargin,
-    worldX: origin + first - leftMargin,
-    width: last - first + 1 + leftMargin + rightMargin,
+    sourceX,
+    worldX: origin + sourceX,
+    width: labelWidth,
     leftMargin,
   };
 }
@@ -3742,31 +3857,33 @@ function lineEndpointAt(x, y, touch = false) {
   return closest;
 }
 
-function drawRulers(x, y, right) {
+function drawRulers(x, y, right, color) {
+  const tapeTop = y - TAPE_MARGIN;
   ctx.save();
-  ctx.fillStyle = ctx.strokeStyle = "#536d61";
+  ctx.fillStyle = ctx.strokeStyle = color;
   ctx.font = "10px system-ui, sans-serif";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(x + .5, y + TAPE_HEIGHT);
+  ctx.moveTo(x + .5, y + PRINTABLE_HEIGHT + .5);
   ctx.lineTo(x + .5, y + .5);
-  ctx.lineTo(right, y + .5);
+  ctx.moveTo(x + .5, tapeTop - .5);
+  ctx.lineTo(right, tapeTop - .5);
 
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   for (let dots = 0; x + dots < right; dots += DOTS_PER_MM) {
     const major = dots % DOTS_PER_CM === 0;
     const tick = x + dots + .5;
-    ctx.moveTo(tick, y + .5);
-    ctx.lineTo(tick, y - (major ? 7 : 3));
-    if (major) ctx.fillText(String(dots / DOTS_PER_CM), tick, y - 9);
+    ctx.moveTo(tick, tapeTop - .5);
+    ctx.lineTo(tick, tapeTop - (major ? 7 : 3));
+    if (major) ctx.fillText(String(dots / DOTS_PER_CM), tick, tapeTop - 9);
   }
   ctx.textAlign = "left";
-  ctx.fillText("cm", x + 12, y - 9);
+  ctx.fillText("cm", x + 12, tapeTop - 9);
 
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  for (let dots = 0; dots <= TAPE_HEIGHT; dots += DOTS_PER_MM) {
+  for (let dots = 0; dots <= PRINTABLE_HEIGHT; dots += DOTS_PER_MM) {
     const major = dots % DOTS_PER_CM === 0;
     const tick = y + dots + .5;
     ctx.moveTo(x + .5, tick);
@@ -3778,9 +3895,13 @@ function drawRulers(x, y, right) {
 }
 
 function drawPreview() {
+  const colors = getComputedStyle(viewport);
+  const trackColor = colors.getPropertyValue("--preview-track").trim();
+  const rulerColor = colors.getPropertyValue("--preview-ruler").trim();
+  const markColor = colors.getPropertyValue("--preview-mark").trim();
   let left = Math.min(0, printBounds?.worldX ?? 0);
   let right = printBounds ? printBounds.worldX + printBounds.width : 0;
-  let top = 0, bottom = TAPE_HEIGHT;
+  let top = -TAPE_MARGIN, bottom = PRINTABLE_HEIGHT + TAPE_MARGIN;
   const draft = drag?.draft;
   const previewItems = draft ? [...items, draft] : items;
   for (const { x, y, layout } of previewItems) {
@@ -3811,55 +3932,60 @@ function drawPreview() {
   canvas.style.height = scale < 1 ? `${height}px` : "";
   if (viewport.scrollLeft !== scrollLeft) viewport.scrollLeft = scrollLeft;
   if (viewport.scrollTop !== scrollTop) viewport.scrollTop = scrollTop;
+  const scrollRange = viewport.scrollWidth - viewport.clientWidth;
+  previewScroll.max = scrollRange;
+  previewScroll.hidden = scrollRange === 0;
+  syncPreviewScroll();
 
   if (scale < 1) {
     ctx.save();
     ctx.scale(surfaceWidth / width, surfaceHeight / height);
   }
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#f4f7f5";
-  ctx.fillRect(previewX, previewY + EDGE_MARGIN, width - previewX, PRINTABLE_HEIGHT);
+  const trackWidth = Math.min(MAX_ARTWORK_WIDTH, width - previewX);
+  ctx.fillStyle = trackColor;
+  ctx.fillRect(previewX, previewY, trackWidth, PRINTABLE_HEIGHT);
   if (printBounds) {
     const bounds = printBounds;
     const pageX = previewX + bounds.worldX;
     ctx.shadowColor = "#263b3030";
     ctx.shadowBlur = 6;
     ctx.fillStyle = "#fff";
-    ctx.fillRect(pageX, previewY, bounds.width, TAPE_HEIGHT);
+    ctx.fillRect(pageX, previewY - TAPE_MARGIN, bounds.width, TAPE_HEIGHT);
     ctx.shadowBlur = 0;
-    ctx.drawImage(artwork, bounds.sourceX, 0, bounds.width, TAPE_HEIGHT,
-      pageX, previewY, bounds.width, TAPE_HEIGHT);
+    ctx.drawImage(artwork, bounds.sourceX, 0, bounds.width, PRINTABLE_HEIGHT,
+      pageX, previewY, bounds.width, PRINTABLE_HEIGHT);
   }
 
   if (draft) {
     ctx.save();
     ctx.beginPath();
-    ctx.rect(previewX, previewY + EDGE_MARGIN, width - previewX, PRINTABLE_HEIGHT);
+    ctx.rect(previewX, previewY, trackWidth, PRINTABLE_HEIGHT);
     ctx.clip();
-    ctx.fillStyle = "#175744";
+    ctx.fillStyle = markColor;
     drawItems(ctx, [draft], previewX, previewY);
     ctx.restore();
   }
 
-  const overflow = previewItems.filter(({ x, y, layout }) => x < 0 || y < EDGE_MARGIN
-    || y + layout.height > TAPE_HEIGHT - EDGE_MARGIN);
+  const overflow = previewItems.filter(({ x, y, layout }) => x < 0 || y < 0
+    || x + layout.width > MAX_ARTWORK_WIDTH || y + layout.height > PRINTABLE_HEIGHT);
   if (overflow.length) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, width, height);
-    ctx.rect(previewX, previewY + EDGE_MARGIN, width - previewX, PRINTABLE_HEIGHT);
+    ctx.rect(previewX, previewY, trackWidth, PRINTABLE_HEIGHT);
     ctx.clip("evenodd");
-    ctx.fillStyle = "#175744";
+    ctx.fillStyle = markColor;
     ctx.globalAlpha = .32;
     drawItems(ctx, overflow, previewX, previewY);
     ctx.restore();
   }
 
-  drawRulers(previewX + (printBounds?.worldX ?? 0), previewY, width);
+  drawRulers(previewX + (printBounds?.worldX ?? 0), previewY, previewX + trackWidth, rulerColor);
 
   if (selected) {
     const { x, y, layout } = selected;
-    ctx.strokeStyle = "#175744";
+    ctx.strokeStyle = markColor;
     const handles = layout.endpoints ? [0, 1].map((index) => lineEndpointPosition(selected, index))
       : corners.map((corner) => cornerPosition(selected, corner));
     if (!layout.endpoints) {
@@ -3886,12 +4012,16 @@ function updatePrintButton() {
 function renderLabel() {
   printBounds = renderArtwork();
   drawPreview();
+  const tapeSize = `${toMillimetres(TAPE_HEIGHT)} mm`;
+  const printHeight = `${toMillimetres(PRINTABLE_HEIGHT)} mm printable height`;
   const caption = printBounds
-    ? `${toMillimetres(printBounds.width)} × ${toMillimetres(TAPE_HEIGHT)} mm · Continuous tape`
-    : "Blank label · 12 mm continuous tape";
+    ? `${toMillimetres(printBounds.width)} × ${tapeSize} · ${printHeight} · Continuous tape`
+    : `Blank label · ${tapeSize} continuous tape · ${printHeight}`;
   if (dimensions.textContent !== caption) dimensions.textContent = caption;
   updatePrintButton();
 }
+
+labelInvert.addEventListener("change", renderLabel);
 
 for (const [side, input] of [["left", leftMarginInput], ["right", rightMarginInput]]) {
   const update = () => {
@@ -3914,10 +4044,18 @@ for (const [side, input] of [["left", leftMarginInput], ["right", rightMarginInp
   });
 }
 
+const shapeItemNames = new Map([["line", "Line"], ["rectangle", "Rectangle"], ["ellipse", "Circle / ellipse"]]);
+const initialShapeIndexes = () => new Map([...shapeItemNames.keys()].map((kind) => [kind, 1]));
+let nextShapeIndexes = initialShapeIndexes();
+
+function numberShape(item, indexes) {
+  const index = indexes.get(item.kind);
+  item.shapeIndex = index;
+  indexes.set(item.kind, index + 1);
+}
+
 function itemName(item) {
-  if (item.kind === "line") return "Line";
-  if (item.kind === "rectangle") return "Rectangle";
-  if (item.kind === "ellipse") return "Circle / ellipse";
+  if (shapeItemNames.has(item.kind)) return `${shapeItemNames.get(item.kind)} ${item.shapeIndex}`;
   if (item.kind !== "text") return item.name;
   return item.text.trim().replace(/\s+/g, " ").slice(0, 42) || "Empty text";
 }
@@ -3948,25 +4086,33 @@ function updatePlacementInputs() {
     shapeWidthInput.value = toMillimetres(selected.layout.width);
     shapeHeightInput.value = toMillimetres(selected.layout.height);
   }
-  xInput.min = toMillimetres(MIN_ITEM_X);
-  xInput.max = toMillimetres(maxX(selected));
+  const { minX, maxX, minY, maxY } = placementLimits(selected);
+  xInput.step = yInput.step = toMillimetres(selected.layout.endpoints ? 1 : .5);
+  xInput.min = toMillimetres(minX);
+  xInput.max = toMillimetres(maxX);
   xInput.value = toMillimetres(selected.x);
-  yInput.min = toMillimetres(minY(selected));
-  yInput.max = toMillimetres(MAX_ITEM_Y);
+  yInput.min = toMillimetres(minY);
+  yInput.max = toMillimetres(maxY);
   yInput.value = toMillimetres(selected.y);
+}
+
+function updateRotationOptions() {
+  rotationInput.value = String(selected.rotation);
+  for (const option of rotationInput.options) {
+    option.disabled = selected.kind === "line" && Math.abs(verticalLineDelta(selected, Number(option.value))) > PRINTABLE_HEIGHT;
+  }
 }
 
 function selectItem(item) {
   if (drag && item !== selected) endDrag();
   selected = item;
   itemPicker.value = item?.id ?? "";
-  copyButton.disabled = !item;
-  inspector.hidden = !item;
+  copyButton.disabled = removeButton.disabled = !item;
   updateLineSettings();
   itemInvertOption.hidden = item?.kind !== "graphic";
   if (!itemInvertOption.hidden) itemInvert.checked = Boolean(item.inverted);
   if (item) {
-    rotationInput.value = String(item.rotation);
+    updateRotationOptions();
     const isText = item.kind === "text";
     for (const control of textControls) control.hidden = !isText;
     if (isText) {
@@ -3994,11 +4140,16 @@ function revealSelected() {
 }
 
 function addItem(properties) {
+  if (nextShapeIndexes.get(properties.kind) === Number.MAX_SAFE_INTEGER) {
+    showLabelFileStatus("This project has reached its shape numbering limit.", true);
+    return;
+  }
   let x = 0;
   for (const item of items) x = Math.max(x, item.x + item.layout.width + 12);
-  const item = { x, y: (TAPE_HEIGHT - (properties.size ?? properties.height ?? 0)) / 2,
+  const item = { x, y: (PRINTABLE_HEIGHT - (properties.size ?? properties.height ?? 0)) / 2,
     rotation: 0, ...properties, id: String(nextItemId++) };
   layoutItem(item);
+  if (shapeItemNames.has(item.kind)) numberShape(item, nextShapeIndexes);
   items.push(item);
   updateItemPicker();
   selectItem(item);
@@ -4008,7 +4159,7 @@ function addItem(properties) {
 
 function copySelected() {
   if (!selected || drag) return;
-  const { id, x, ...properties } = selected;
+  const { id, x, shapeIndex, ...properties } = selected;
   copiedItem = properties;
   pasteButton.disabled = false;
 }
@@ -4050,8 +4201,10 @@ function updateLineSettings() {
   let maxWidth = PRINTABLE_HEIGHT;
   if (shape) maxWidth = maxShapeLineWidth(item.width, item.height);
   if (item?.kind === "line") maxWidth = Math.min(maxWidth, MAX_ARTWORK_WIDTH - Math.max(Math.abs(item.dx), Math.abs(item.dy)));
+  inspector.hidden = !selected && !lineTool;
+  inspector.toggleAttribute("data-no-selection", !selected);
   lineSettings.hidden = !lineTool && item?.lineWidth === undefined;
-  lineWidthLabel.textContent = shape ? "Border thickness (mm)" : "Line width (mm)";
+  lineWidthLabel.textContent = lineTool ? "New line thickness (mm)" : shape ? "Border thickness (mm)" : "Line thickness (mm)";
   lineWidthInput.max = toMillimetres(maxWidth);
   lineWidthInput.value = toMillimetres(item?.lineWidth ?? lineWidth);
 }
@@ -4073,7 +4226,7 @@ lineWidthInput.addEventListener("change", () => {
     if (lineTool || selected?.kind === "line") lineWidth = width;
     if (!lineTool && selected?.lineWidth !== undefined) {
       if (selected.kind === "line") {
-        const offset = Math.floor(selected.lineWidth / 2) - Math.floor(width / 2);
+        const offset = (selected.lineWidth - width) / 2;
         selected.x += offset;
         selected.y += offset;
       }
@@ -4117,7 +4270,7 @@ document.addEventListener("keydown", (event) => {
     pasteItem();
   }
 });
-document.querySelector("#remove-item").addEventListener("click", () => {
+removeButton.addEventListener("click", () => {
   removeSelected();
   (items.length ? itemPicker : document.querySelector("#add-text")).focus();
 });
@@ -4145,12 +4298,17 @@ itemInvert.addEventListener("change", () => {
 });
 rotationInput.addEventListener("change", () => {
   if (!selected) return;
+  const rotation = Number(rotationInput.value);
+  if (selected.kind === "line" && Math.abs(verticalLineDelta(selected, rotation)) > PRINTABLE_HEIGHT) {
+    updateRotationOptions();
+    return;
+  }
   if (drag) endDrag();
-  const centerX = selected.x + Math.floor(selected.layout.width / 2);
-  const centerY = selected.y + Math.floor(selected.layout.height / 2);
-  selected.rotation = Number(rotationInput.value);
+  const centerX = selected.x + selected.layout.width / 2;
+  const centerY = selected.y + selected.layout.height / 2;
+  selected.rotation = rotation;
   layoutItem(selected);
-  placeItem(selected, centerX - Math.floor(selected.layout.width / 2), centerY - Math.floor(selected.layout.height / 2));
+  placeItem(selected, centerX - selected.layout.width / 2, centerY - selected.layout.height / 2);
   updatePlacementInputs();
   renderLabel();
   revealSelected();
@@ -4161,12 +4319,17 @@ for (const [input, property] of [
   input.addEventListener("change", () => {
     if (!selected || input.parentElement.hidden) return;
     if (Number.isFinite(input.valueAsNumber)) {
-      const dots = Math.round(input.valueAsNumber * DOTS_PER_MM);
+      const dots = input.valueAsNumber * DOTS_PER_MM;
       if (property === "width" || property === "height") {
         resizeShape(selected, property === "width" ? dots : selected.layout.width,
           property === "height" ? dots : selected.layout.height);
+      } else if (property === "x" || property === "y") {
+        moveSelection(property === "x" ? dots : selected.x, property === "y" ? dots : selected.y);
+        updatePlacementInputs();
+        revealSelected();
+        return;
       } else {
-        selected[property] = clamp(dots, Number(input.min) * DOTS_PER_MM, Number(input.max) * DOTS_PER_MM);
+        selected[property] = clamp(Math.round(dots), Number(input.min) * DOTS_PER_MM, Number(input.max) * DOTS_PER_MM);
       }
       updateSelectedLayout();
       revealSelected();
@@ -4195,23 +4358,21 @@ function moveSelection(x, y) {
   renderLabel();
 }
 
-function snapLineDelta(dx, dy, shiftKey) {
+function boundedLineDelta(startX, startY, endX, endY, width, shiftKey) {
+  const extent = MAX_ARTWORK_WIDTH - width;
+  const dx = clamp(Math.round(endX - startX), Math.max(-startX, -extent), Math.min(MAX_ARTWORK_WIDTH - startX, extent));
+  const dy = clamp(Math.round(endY - startY), -startY, PRINTABLE_HEIGHT - startY);
   if (!shiftKey) return [dx, dy];
   return Math.abs(dx) >= Math.abs(dy) ? [dx, 0] : [0, dy];
 }
 
 function updateLineDraft(point) {
   const { startX, startY, lineWidth: width, shiftKey } = drag;
-  const inset = Math.floor(width / 2);
-  const extent = MAX_ARTWORK_WIDTH - width;
-  const endX = clamp(Math.round(point.x), Math.max(MIN_ITEM_X + inset, startX - extent),
-    Math.min(MAX_ARTWORK_WIDTH - Math.ceil(width / 2), startX + extent));
-  const endY = clamp(Math.round(point.y), -MAX_ITEM_HEIGHT, MAX_ITEM_Y);
-  const [dx, dy] = snapLineDelta(endX - startX, endY - startY, shiftKey);
+  const [dx, dy] = boundedLineDelta(startX, startY, point.x, point.y, width, shiftKey);
   drag.draft = null;
   if (dx || dy) {
     const draft = { kind: "line", dx, dy, lineWidth: width, rotation: 0,
-      x: startX + Math.min(dx, 0) - inset, y: startY + Math.min(dy, 0) - inset };
+      x: startX + Math.min(dx, 0) - width / 2, y: startY + Math.min(dy, 0) - width / 2 };
     layoutItem(draft);
     drag.draft = draft;
   }
@@ -4222,11 +4383,7 @@ function moveLineEndpoint(pointerDx, pointerDy) {
   const { index, moving, fixed } = drag.lineEndpoint;
   const { lineWidth, rotation } = selected;
   const radius = lineWidth / 2;
-  const extent = MAX_ARTWORK_WIDTH - lineWidth;
-  const endX = clamp(moving.x + Math.round(pointerDx), Math.max(MIN_ITEM_X + radius, fixed.x - extent),
-    Math.min(MAX_ARTWORK_WIDTH - radius, fixed.x + extent));
-  const endY = clamp(moving.y + Math.round(pointerDy), fixed.y - extent, fixed.y + extent);
-  const [dx, dy] = snapLineDelta(endX - fixed.x, endY - fixed.y, drag.shiftKey);
+  const [dx, dy] = boundedLineDelta(fixed.x, fixed.y, moving.x + pointerDx, moving.y + pointerDy, lineWidth, drag.shiftKey);
   if (!dx && !dy) return;
 
   const x = fixed.x + Math.min(0, dx) - radius;
@@ -4238,9 +4395,9 @@ function moveLineEndpoint(pointerDx, pointerDy) {
     dx: direction * (a * dx + b * dy), dy: direction * (c * dx + d * dy) };
   if (selected.x === x && selected.y === y && selected.dx === line.dx && selected.dy === line.dy) return;
   layoutItem(line);
-  if (line.x !== x || line.y !== y) return; // Keep the stationary end fixed at the workspace limits.
   Object.assign(selected, line);
   updatePlacementInputs();
+  updateRotationOptions();
   updateLineSettings();
   renderLabel();
 }
@@ -4313,11 +4470,9 @@ canvas.addEventListener("pointerdown", (event) => {
   const { x, y } = previewPoint(event.clientX, event.clientY);
   canvas.focus({ preventScroll: true });
   if (lineTool) {
-    const left = clamp(printBounds?.worldX ?? 0, MIN_ITEM_X, 0);
-    if (x < left || x >= MAX_ARTWORK_WIDTH || y < 0 || y >= TAPE_HEIGHT) return;
+    if (x < 0 || x > MAX_ARTWORK_WIDTH || y < 0 || y > PRINTABLE_HEIGHT) return;
     selectItem(null);
-    const startX = clamp(Math.round(x), MIN_ITEM_X + Math.floor(lineWidth / 2), MAX_ARTWORK_WIDTH - Math.ceil(lineWidth / 2));
-    drag = { id: event.pointerId, startX, startY: Math.round(y),
+    drag = { id: event.pointerId, startX: Math.round(x), startY: Math.round(y),
       clientX: event.clientX, clientY: event.clientY, drawingLine: true, shiftKey: event.shiftKey, lineWidth };
     canvas.setPointerCapture(event.pointerId);
     return;
@@ -4400,6 +4555,14 @@ canvas.addEventListener("keydown", (event) => {
   moveSelection(selected.x + delta[0] * step, selected.y + delta[1] * step);
   revealSelected();
 });
+function syncPreviewScroll() {
+  previewScroll.valueAsNumber = viewport.scrollLeft;
+}
+
+previewScroll.addEventListener("input", () => {
+  viewport.scrollLeft = previewScroll.valueAsNumber;
+});
+viewport.addEventListener("scroll", syncPreviewScroll);
 new ResizeObserver(drawPreview).observe(viewport);
 
 const iconDialog = document.querySelector("#icon-dialog");
@@ -4771,8 +4934,8 @@ function readDataUrl(blob) {
 function saveLabelItem(item, imageSources) {
   const { kind, x, y, rotation } = item;
   const placement = { kind, x, y, rotation };
-  if (kind === "line") return { ...placement, dx: item.dx, dy: item.dy, lineWidth: item.lineWidth };
-  if (isShape(item)) return { ...placement, width: item.width, height: item.height, lineWidth: item.lineWidth };
+  if (kind === "line") return { ...placement, shapeIndex: item.shapeIndex, dx: item.dx, dy: item.dy, lineWidth: item.lineWidth };
+  if (isShape(item)) return { ...placement, shapeIndex: item.shapeIndex, width: item.width, height: item.height, lineWidth: item.lineWidth };
   const geometry = { ...placement, size: item.size };
   if (kind === "text") return { ...geometry, text: item.text, font: item.font, weight: item.weight };
   if (kind === "icon") return { ...geometry, name: item.name, svg: item.icon.source };
@@ -4808,8 +4971,10 @@ exportLabelButton.addEventListener("click", async () => {
       version: labelVersion,
       name: designNameInput.value.trim(),
       units: "dots",
-      tape: { height: TAPE_HEIGHT, edgeMargin: EDGE_MARGIN, dotsPerMillimetre: DOTS_PER_MM },
+      tape: { height: TAPE_HEIGHT, edgeMargin: TAPE_MARGIN, dotsPerMillimetre: DOTS_PER_MM },
       margins: { ...margins },
+      inverted: labelInvert.checked,
+      nextShapeIndexes: Object.fromEntries(nextShapeIndexes),
       items: savedItems,
       images: await Promise.all([...imageSources.keys()].map(readDataUrl)),
     });
@@ -4831,7 +4996,9 @@ function readSavedGraphic(dataUrl) {
 
 async function openLabelItem(saved, images, graphics) {
   const { kind, x, y, size, rotation } = saved ?? {};
-  if (!isIntegerBetween(x, MIN_ITEM_X, MAX_ARTWORK_WIDTH) || !isIntegerBetween(y, -MAX_ARTWORK_WIDTH, MAX_ITEM_Y)
+  if (typeof x !== "number" || typeof y !== "number"
+    || !isIntegerBetween(x * 2, -MAX_ARTWORK_WIDTH * 2, MAX_ARTWORK_WIDTH * 2)
+    || !isIntegerBetween(y * 2, -MAX_ARTWORK_WIDTH * 2, (PRINTABLE_HEIGHT + MAX_ITEM_HEIGHT) * 2)
     || ![0, 90, 180, 270].includes(rotation)) {
     throw new Error("Invalid position or rotation.");
   }
@@ -4884,28 +5051,57 @@ async function readLabel(file) {
     || !Array.isArray(saved.items) || !Array.isArray(saved.images)) {
     throw new Error("Choose a label JSON file exported by the current editor.");
   }
-  const { name = "" } = saved;
+  const { name = "", inverted } = saved;
   if (typeof name !== "string") throw new Error("The label has an invalid design name.");
+  if (typeof inverted !== "boolean") throw new Error("The label must specify whether its colors are inverted.");
   const { left, right } = saved.margins ?? {};
   if (!isIntegerBetween(left, 0, Number(leftMarginInput.max)) || !isIntegerBetween(right, 0, Number(rightMarginInput.max))) {
     throw new Error("The label has invalid margins.");
   }
   const graphics = new Map();
   const restored = [];
+  const indexes = initialShapeIndexes();
+  const hasSavedIndexes = Object.hasOwn(saved, "nextShapeIndexes");
+  const usedShapeIndexes = new Set();
+  if (hasSavedIndexes) {
+    for (const kind of indexes.keys()) {
+      const next = saved.nextShapeIndexes?.[kind];
+      if (!Number.isSafeInteger(next) || next < 1) throw new Error("The label has invalid shape numbering.");
+      indexes.set(kind, next);
+    }
+  }
+  let adjusted = false;
   for (const [index, stored] of saved.items.entries()) {
     try {
       const item = await openLabelItem(stored, saved.images, graphics);
-      if (item.kind !== "line" && !isShape(item)) {
+      if (item.kind === "line") {
+        const axis = item.rotation % 180 ? "dx" : "dy";
+        item[axis] = clamp(item[axis], -PRINTABLE_HEIGHT, PRINTABLE_HEIGHT);
+        if (item[axis] !== stored[axis]) adjusted = true;
+      } else if (!isShape(item)) {
         const { min, max } = itemSizeLimits(item);
         if (!isIntegerBetween(item.size, min, max)) throw new Error("Size is out of range.");
       }
       layoutItem(item);
+      if (item.x !== stored.x || item.y !== stored.y) adjusted = true;
+      if (shapeItemNames.has(item.kind)) {
+        if (hasSavedIndexes) {
+          const key = `${item.kind}:${stored.shapeIndex}`;
+          if (!isIntegerBetween(stored.shapeIndex, 1, indexes.get(item.kind) - 1) || usedShapeIndexes.has(key)) {
+            throw new Error("Invalid or duplicate shape number.");
+          }
+          usedShapeIndexes.add(key);
+          item.shapeIndex = stored.shapeIndex;
+        } else {
+          numberShape(item, indexes);
+        }
+      }
       restored.push(item);
     } catch (error) {
       throw new Error(`Item ${index + 1}. ${error.message}`);
     }
   }
-  return { name, left, right, restored };
+  return { name, left, right, inverted, restored, adjusted, indexes };
 }
 
 importLabelButton.addEventListener("click", () => labelFile.click());
@@ -4916,14 +5112,16 @@ labelFile.addEventListener("change", async () => {
   importLabelButton.disabled = true;
   showLabelFileStatus("Opening label…");
   try {
-    const { name, left, right, restored } = await readLabel(file);
+    const { name, left, right, inverted, restored, adjusted, indexes } = await readLabel(file);
     setLineTool(false);
     items.length = 0;
+    nextShapeIndexes = indexes;
     for (const item of restored) {
       item.id = String(nextItemId++);
       items.push(item);
     }
     designNameInput.value = name;
+    labelInvert.checked = inverted;
     margins.left = left;
     margins.right = right;
     leftMarginInput.value = left;
@@ -4932,7 +5130,7 @@ labelFile.addEventListener("change", async () => {
     selectItem(items[0] ?? null);
     renderLabel();
     if (selected) revealSelected();
-    showLabelFileStatus("Label opened.");
+    showLabelFileStatus(adjusted ? "Label opened. Item geometry was adjusted to fit the print area." : "Label opened.");
   } catch (error) {
     showLabelFileStatus(error.message, true);
   } finally {
@@ -4941,16 +5139,17 @@ labelFile.addEventListener("change", async () => {
 });
 
 function refreshControls() {
-  const supported = isSecureContext && navigator.bluetooth;
-  mode.disabled = working || Boolean(connection);
-  scanOption.hidden = !supported;
-  scanAll.disabled = mode.disabled;
-  connectButton.disabled = working || (!connection && !supported);
-  connectButton.textContent = connection ? "Disconnect" : "Connect";
+  const connected = Boolean(connection);
+  const identity = connected
+    ? `Connected: ${connection.model} (${connection.channel.transport.displayName})`
+    : "Connected: none";
+  if (connectionIdentity.textContent !== identity) connectionIdentity.textContent = identity;
+  connectionIdentity.title = identity;
+  scanAll.disabled = working || connected || !isSecureContext || !navigator.bluetooth;
+  connectButton.disabled = working;
+  connectButton.textContent = connected ? "Disconnect" : "Connect";
+  connectButton.toggleAttribute("data-connected", connected);
   updatePrintButton();
-  connectionHelp.textContent = !isSecureContext ? "Open this page on HTTPS or localhost in Chrome."
-    : !supported ? "Open this page in Chrome on a device that supports Web Bluetooth."
-    : "Power on your printer. If it is missing from the chooser, show all nearby BLE devices.";
 }
 
 function onLost(transport) {
@@ -4958,11 +5157,13 @@ function onLost(transport) {
   const lost = connection;
   connection = null;
   void lost.channel.close();
-  showStatus("Bluetooth connection lost.", "error");
+  showConnectionError("Bluetooth connection lost.");
   refreshControls();
 }
 
 connectButton.addEventListener("click", async () => {
+  showConnectionError();
+  showPrintStatus("");
   working = true;
   refreshControls();
   let channel;
@@ -4971,23 +5172,21 @@ connectButton.addEventListener("click", async () => {
       const current = connection;
       connection = null;
       await current.channel.close();
-      showStatus("Printer disconnected.");
       return;
     }
-    const model = mode.value.startsWith("e16") ? "E16" : "E10";
-    showStatus("Select your printer…");
-    const transport = await openBle(model, scanAll.checked, onLost);
+    if (!isSecureContext) throw new Error("Open this page on HTTPS or localhost in Chrome to connect a printer.");
+    if (!navigator.bluetooth) throw new Error("Open this page in Chrome on a device that supports Web Bluetooth.");
+    connectButton.textContent = "Connecting…";
+    const transport = await openBle(scanAll.checked, onLost);
     channel = new PrinterChannel(transport);
-    connection = { channel, model };
-    showStatus("Checking printer…");
+    connection = { channel, model: transport.model };
     await handshake(channel);
     if (connection?.channel !== channel) throw new Error("Printer disconnected.");
-    showStatus("Connected to " + transport.name + ".");
   } catch (error) {
     if (connection?.channel === channel) connection = null;
     if (channel) await channel.close();
     const fileHint = location.protocol === "file:" && error.name === "SecurityError" ? " Open the page from localhost." : "";
-    showStatus(error.name === "NotFoundError" ? "No printer selected." : error.message + fileHint, "error");
+    showConnectionError(error.name === "NotFoundError" ? "No printer selected." : error.message + fileHint);
   } finally {
     working = false;
     refreshControls();
@@ -4998,28 +5197,47 @@ labelForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!connection || working || !printBounds) return;
   const { sourceX, width, leftMargin } = printBounds;
-  const image = ink.getImageData(sourceX, 0, width, TAPE_HEIGHT);
+  const image = ink.getImageData(sourceX, 0, width, PRINTABLE_HEIGHT);
+  const blankLeftMargin = labelInvert.checked ? 0 : leftMargin;
   const current = connection;
   let started = false;
   working = true;
   refreshControls();
-  showStatus("Preparing label…");
+  showPrintStatus("Preparing label…");
   try {
-    await sendLabel(current, image, leftMargin, showStatus, () => { started = true; });
-    showStatus("Label printed.");
+    await sendLabel(current, image, blankLeftMargin, showPrintStatus, () => { started = true; });
+    showPrintStatus("Label printed.");
   } catch (error) {
     if (started) {
       if (connection === current) connection = null;
       await current.channel.close();
     }
-    showStatus(started ? error.message + " Check the printer before reconnecting and trying again." : error.message, "error");
+    showPrintStatus(started ? error.message + " Check the printer before reconnecting and trying again." : error.message, "error");
   } finally {
     working = false;
     refreshControls();
   }
 });
 
-mode.addEventListener("change", refreshControls);
+const themeToggle = document.querySelector("#theme-toggle");
+const themeRoot = document.documentElement;
+function updateThemeToggle() {
+  themeToggle.textContent = themeRoot.dataset.theme === "light" ? "Dark mode" : "Light mode";
+}
+themeToggle.addEventListener("click", () => {
+  const theme = themeRoot.dataset.theme === "light" ? "dark" : "light";
+  themeRoot.dataset.theme = theme;
+  updateThemeToggle();
+  drawPreview();
+  try {
+    localStorage.setItem(themeStorageKey, theme);
+  } catch (error) {
+    console.warn("Could not save the theme preference.", error);
+  }
+});
+updateThemeToggle();
+themeToggle.hidden = false;
+
 addItem({ kind: "text", text: "HELLO", font: "standard", weight: "700", size: 44 });
 refreshControls();
 </script>
