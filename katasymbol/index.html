@@ -14,6 +14,7 @@
     console.warn("Could not load the theme preference.", error);
   }
 </script>
+<link rel="stylesheet" href="rounded-fonts.css">
 <style>
   :root {
     color-scheme: dark;
@@ -65,8 +66,6 @@
   * { box-sizing: border-box; }
   body { margin: 0; }
   main { width: min(100% - 2rem, 48rem); margin: 1rem auto clamp(2rem, 8vw, 5rem); }
-  .page-tools { text-align: right; margin-bottom: .75rem; }
-  .page-tools .secondary { width: auto; }
   .panel {
     padding: clamp(1.15rem, 5vw, 1.75rem);
     background: var(--surface); border: 1px solid var(--line); border-radius: 1rem;
@@ -93,7 +92,9 @@
   .connection-row { display: flex; align-items: center; gap: .5rem; }
   #connect { flex: none; width: auto; padding-inline: .7rem; font-size: .875rem; }
   #connect[data-connected] { color: #fff; background: #a92d31; border-color: #a92d31; }
-  #connection-identity { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #connection-identity { display: flex; flex: 1; min-width: 0; gap: .5rem; }
+  #connection-device { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #connection-battery { flex: none; white-space: nowrap; }
   .connection-row .checkbox-option { flex: none; margin: 0; white-space: nowrap; }
   button:enabled:hover { filter: brightness(.93); }
   button:disabled { cursor: default; opacity: .55; }
@@ -107,10 +108,15 @@
   .status[data-kind="error"] { background: var(--error-background); color: var(--error-text); }
   #label-form { border-top: 1px solid var(--line); padding-top: 1.2rem; margin-top: 1.2rem; }
   .editor-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; margin-top: .75rem; }
-  .element-tools { display: flex; flex: 1 0 100%; flex-wrap: wrap; gap: .4rem; }
-  .element-tools .secondary { display: grid; place-items: center; width: 2.85rem; padding: 0; }
+  .element-tools { display: flex; flex: 1 0 100%; align-items: start; gap: clamp(.25rem, 1vw, .4rem); }
+  .item-tools, .add-item-tools { display: flex; min-width: 0; gap: inherit; }
+  .item-tools { flex: 1; flex-wrap: wrap; }
+  .element-tools .secondary:not([hidden]), .text-alignment .secondary { display: grid; place-items: center; width: 2.85rem; padding: 0; }
+  .element-tools .secondary:not([hidden]) { min-width: 0; width: clamp(2rem, 9vw, 2.85rem); }
+  #theme-toggle { flex: none; }
   .element-tools .checkbox-option { margin: 0 0 0 .35rem; min-height: 2.85rem; }
-  .element-tools svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .element-tools svg, .text-alignment svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  :root[data-theme="light"] .theme-sun, :root:not([data-theme="light"]) .theme-moon { display: none; }
   .item-picker { flex: 1 1 6rem; min-width: 0; }
   .item-actions { display: flex; gap: clamp(.35rem, 1.5vw, .65rem); }
   .item-actions .secondary { width: auto; padding-inline: clamp(.45rem, 2vw, .9rem); }
@@ -140,6 +146,8 @@
   .inspector { margin-top: 1rem; }
   .inspector[data-no-selection] > :not(.fields),
   .inspector[data-no-selection] .fields > :not(#line-settings) { display: none; }
+  #text-alignments:not([hidden]) { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .65rem; }
+  .text-alignment { display: flex; gap: .25rem; }
   .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr)); align-items: end; gap: .65rem; margin: .65rem 0; }
   .fields > div { min-width: 0; }
   dialog { width: min(100% - 2rem, 28rem); padding: 1.25rem; border: 1px solid var(--line); border-radius: .85rem; color: inherit; background: var(--surface); }
@@ -154,6 +162,10 @@
   .graphic-preview canvas {
     flex: none; margin: auto; background: #fff; image-rendering: pixelated; cursor: default; touch-action: auto;
   }
+  @media (max-width: 520px) {
+    .connection-row { flex-wrap: wrap; }
+    #connection-identity { flex-basis: 100%; }
+  }
   @media (max-width: 400px) {
     .editor-toolbar { column-gap: .45rem; }
     .item-picker { flex-basis: 5.5rem; }
@@ -164,12 +176,12 @@
 </head>
 <body>
 <main>
-  <div class="page-tools">
-    <button id="theme-toggle" class="secondary" type="button" hidden>Light mode</button>
-  </div>
   <section class="panel" aria-label="Printer and label">
     <div class="connection-row">
-      <span id="connection-identity" role="status">Connected: none</span>
+      <span id="connection-identity" role="status">
+        <span id="connection-device">Connected: none</span>
+        <span id="connection-battery" hidden></span>
+      </span>
       <button id="connect" class="secondary" type="button">Connect</button>
       <label class="checkbox-option" title="Include nearby devices that do not match known E10 or E16 Bluetooth names">
         <input id="scan-all" type="checkbox" aria-label="Show all BLE devices"> Show all
@@ -179,27 +191,35 @@
     <form id="label-form" novalidate>
       <div class="editor-toolbar">
         <div class="element-tools" role="group" aria-label="Label tools">
-          <button id="add-text" class="secondary" type="button" aria-label="Add text" title="Add text">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V4h14v3M12 4v16m-4 0h8"/></svg>
+          <div class="item-tools">
+            <div class="add-item-tools">
+              <button id="add-text" class="secondary" type="button" aria-label="Add text" title="Add text">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V4h14v3M12 4v16m-4 0h8"/></svg>
+              </button>
+              <button id="add-icon" class="secondary" type="button" aria-label="Add icon" title="Add icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/></svg>
+              </button>
+              <button id="add-graphic" class="secondary" type="button" aria-label="Add graphic" title="Add graphic">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-4 4 3 5-6 4 5"/></svg>
+              </button>
+              <button id="draw-line" class="secondary" type="button" aria-label="Draw line" title="Draw line" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4"/></svg>
+              </button>
+              <button id="add-rectangle" class="secondary" type="button" aria-label="Add rectangle" title="Add rectangle">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14"/></svg>
+              </button>
+              <button id="add-ellipse" class="secondary" type="button" aria-label="Add circle or ellipse" title="Add circle or ellipse">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>
+              </button>
+            </div>
+            <label class="checkbox-option" title="Invert black and white for the entire label">
+              <input id="label-invert" type="checkbox"> Invert
+            </label>
+          </div>
+          <button id="theme-toggle" class="secondary" type="button" aria-label="Switch to light mode" title="Switch to light mode" hidden>
+            <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+            <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.9 13.3A9 9 0 1 1 10.7 3.1a7 7 0 0 0 10.2 10.2Z"/></svg>
           </button>
-          <button id="add-icon" class="secondary" type="button" aria-label="Add icon" title="Add icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/></svg>
-          </button>
-          <button id="add-graphic" class="secondary" type="button" aria-label="Add graphic" title="Add graphic">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m3 17 5-4 4 3 5-6 4 5"/></svg>
-          </button>
-          <button id="draw-line" class="secondary" type="button" aria-label="Draw line" title="Draw line" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4"/></svg>
-          </button>
-          <button id="add-rectangle" class="secondary" type="button" aria-label="Add rectangle" title="Add rectangle">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14"/></svg>
-          </button>
-          <button id="add-ellipse" class="secondary" type="button" aria-label="Add circle or ellipse" title="Add circle or ellipse">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>
-          </button>
-          <label class="checkbox-option" title="Invert black and white for the entire label">
-            <input id="label-invert" type="checkbox"> Invert
-          </label>
         </div>
         <div class="item-picker">
           <label for="label-items">Selected item</label>
@@ -226,6 +246,33 @@
           <label for="label-text">Text</label>
           <textarea id="label-text" rows="2" maxlength="120" spellcheck="false"></textarea>
         </div>
+        <label class="checkbox-option text-style">
+          <input id="text-fixed-size" type="checkbox"> Fixed size
+        </label>
+        <div id="text-alignments" hidden>
+          <div id="text-align-x" class="text-alignment" role="group" aria-label="Horizontal text alignment">
+            <button class="secondary" type="button" value="left" aria-label="Align left" title="Align left" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 10h10M4 15h16M4 20h10"/></svg>
+            </button>
+            <button class="secondary" type="button" value="center" aria-label="Align center" title="Align center" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg>
+            </button>
+            <button class="secondary" type="button" value="right" aria-label="Align right" title="Align right" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M10 10h10M4 15h16M10 20h10"/></svg>
+            </button>
+          </div>
+          <div id="text-align-y" class="text-alignment" role="group" aria-label="Vertical text alignment">
+            <button class="secondary" type="button" value="top" aria-label="Align top" title="Align top" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16M6 9h12M8 13h8M6 17h12"/></svg>
+            </button>
+            <button class="secondary" type="button" value="middle" aria-label="Align middle" title="Align middle" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M4 12h16M6 17h12"/></svg>
+            </button>
+            <button class="secondary" type="button" value="bottom" aria-label="Align bottom" title="Align bottom" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 15h12M8 11h8M6 7h12"/></svg>
+            </button>
+          </div>
+        </div>
         <label id="item-invert-option" class="checkbox-option" hidden>
           <input id="item-invert" type="checkbox"> Invert black and white
         </label>
@@ -243,6 +290,8 @@
               <option value="verdana">Verdana</option>
               <option value="monospace">Monospace</option>
               <option value="georgia">Georgia (Serif)</option>
+              <option value="dosis" disabled>Dosis (Rounded Narrow)</option>
+              <option value="saira-extra-condensed" disabled>Saira Extra Condensed</option>
             </select>
           </div>
           <div class="text-style">
@@ -253,13 +302,13 @@
             <label id="item-size-label" for="item-size">Height (mm)</label>
             <input id="item-size" type="number" min="0.5" max="64" step="0.125" inputmode="decimal">
           </div>
-          <div class="shape-size" hidden>
-            <label for="shape-width">Width (mm)</label>
-            <input id="shape-width" type="number" step="0.125" inputmode="decimal">
+          <div class="box-size" hidden>
+            <label for="item-width">Width (mm)</label>
+            <input id="item-width" type="number" step="0.125" inputmode="decimal">
           </div>
-          <div class="shape-size" hidden>
-            <label for="shape-height">Height (mm)</label>
-            <input id="shape-height" type="number" step="0.125" inputmode="decimal">
+          <div class="box-size" hidden>
+            <label for="item-height">Height (mm)</label>
+            <input id="item-height" type="number" step="0.125" inputmode="decimal">
           </div>
           <div>
             <label for="item-rotation">Rotation</label>
@@ -3195,6 +3244,7 @@ class PrinterChannel {
   constructor(transport) {
     this.transport = transport;
     this.pending = null;
+    this.batteryPercent = null;
     transport.receive = (bytes) => this.receive(bytes);
   }
 
@@ -3341,9 +3391,21 @@ async function openBle(scanAll, onLost) {
   }
 }
 
-function parseStatus(bytes) {
+function readBatteryPercent(bytes, { model, displayName }) {
+  if (bytes.length < 26) return null;
+  // The status reply reports millivolts. The Android drivers round to centivolts
+  // and use four bars, with a separate scale for E10 variants whose names contain A, B or D.
+  const centivolts = Math.round(get16(bytes, 24) / 10);
+  const twoCell = model === "E10" && /[ABD]/.test(displayName);
+  if (centivolts <= (twoCell ? 500 : 200)) return null;
+  const thresholds = twoCell ? [680, 740, 760, 788] : [370, 380, 390, 395];
+  return 25 * thresholds.filter((threshold) => centivolts > threshold).length;
+}
+
+function parseStatus(bytes, transport) {
   if (bytes.length < 20) throw new Error("Printer returned a short status reply.");
   return {
+    batteryPercent: readBatteryPercent(bytes, transport),
     busy: Boolean(bytes[15] & 4),
     printing: Boolean(bytes[16] & 0x40),
     bufferFull: Boolean(bytes[14] & 1),
@@ -3353,7 +3415,12 @@ function parseStatus(bytes) {
       : "",
   };
 }
-const status = async (channel, timeout) => parseStatus(await channel.command(CMD.status, 0, 0, timeout));
+
+async function status(channel, timeout) {
+  const state = parseStatus(await channel.command(CMD.status, 0, 0, timeout), channel.transport);
+  if (state.batteryPercent !== null) channel.batteryPercent = state.batteryPercent;
+  return state;
+}
 
 async function handshake(channel) {
   for (let attempt = 0; ; attempt++) {
@@ -3422,6 +3489,8 @@ async function sendLabel(connection, image, leftMargin, setStatus, jobStarted) {
 
 const connectButton = document.querySelector("#connect");
 const connectionIdentity = document.querySelector("#connection-identity");
+const connectionDevice = document.querySelector("#connection-device");
+const connectionBattery = document.querySelector("#connection-battery");
 const connectionError = document.querySelector("#connection-error");
 const scanAll = document.querySelector("#scan-all");
 const labelForm = document.querySelector("#label-form");
@@ -3442,14 +3511,20 @@ const inspector = document.querySelector("#item-inspector");
 const textControls = document.querySelectorAll("#text-content, .text-style");
 const fontInput = document.querySelector("#text-font");
 const weightInput = document.querySelector("#text-weight");
+const fixedSizeInput = document.querySelector("#text-fixed-size");
+const textAlignments = document.querySelector("#text-alignments");
+const alignmentButtons = [
+  ["alignX", document.querySelectorAll("#text-align-x button")],
+  ["alignY", document.querySelectorAll("#text-align-y button")],
+];
 const itemInvertOption = document.querySelector("#item-invert-option");
 const itemInvert = document.querySelector("#item-invert");
 const sizeControl = document.querySelector("#item-size-control");
 const sizeLabel = document.querySelector("#item-size-label");
 const sizeInput = document.querySelector("#item-size");
-const shapeSizeControls = document.querySelectorAll(".shape-size");
-const shapeWidthInput = document.querySelector("#shape-width");
-const shapeHeightInput = document.querySelector("#shape-height");
+const boxSizeControls = document.querySelectorAll(".box-size");
+const boxWidthInput = document.querySelector("#item-width");
+const boxHeightInput = document.querySelector("#item-height");
 const rotationInput = document.querySelector("#item-rotation");
 const xInput = document.querySelector("#item-x");
 const yInput = document.querySelector("#item-y");
@@ -3471,6 +3546,8 @@ const MAX_ARTWORK_WIDTH = 16000;
 const DOTS_PER_CM = 10 * DOTS_PER_MM;
 const MIN_ITEM_HEIGHT = 4;
 const MAX_ITEM_HEIGHT = 512;
+const TEXT_MEASUREMENT_SIZE = 100;
+const TEXT_LINE_SPACING = 115;
 const DEFAULT_LINE_WIDTH = 4;
 const HANDLE_OFFSET = 3;
 const HANDLE_SIZE = 8;
@@ -3517,6 +3594,8 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const toMillimetres = (dots) => dots / DOTS_PER_MM;
 const fitHeight = (height, aspectRatio) => Math.min(height, Math.floor(MAX_ARTWORK_WIDTH / aspectRatio));
 const isShape = (item) => item?.kind === "rectangle" || item?.kind === "ellipse";
+const isFixedText = (item) => item?.kind === "text" && item.fixedSize === true;
+const hasBoxSize = (item) => isShape(item) || isFixedText(item);
 const maxShapeLineWidth = (width, height) => Math.min(PRINTABLE_HEIGHT, Math.floor((Math.min(width, height) - 1) / 2));
 const fontFamilies = {
   standard: "system-ui, sans-serif",
@@ -3525,40 +3604,78 @@ const fontFamilies = {
   verdana: 'Verdana, "DejaVu Sans", sans-serif',
   monospace: 'Menlo, Consolas, "DejaVu Sans Mono", monospace',
   georgia: 'Georgia, "Times New Roman", serif',
+  dosis: '"Dosis", sans-serif',
+  "saira-extra-condensed": '"Saira Extra Condensed", sans-serif',
 };
+const bundledFontLoads = new Map(["dosis", "saira-extra-condensed"].map((font) => {
+  const weights = [...weightInput.options].map(({ value }) => value);
+  const loads = weights.map((weight) => document.fonts.load(`${weight} ${TEXT_MEASUREMENT_SIZE}px ${fontFamilies[font]}`));
+  const load = Promise.all(loads).then((matches) => {
+    if (matches.some((faces) => !faces.length)) return false;
+    fontInput.querySelector(`option[value="${font}"]`).disabled = false;
+    return true;
+  }, () => false);
+  return [font, load];
+}));
+const horizontalAlignment = { left: 0, center: .5, right: 1 };
+const verticalAlignment = { top: 0, middle: .5, bottom: 1 };
 
 function textLayout(item) {
-  const font = `${item.weight} 100px ${fontFamilies[item.font]}`;
+  const { fixedSize } = item;
+  const font = `${item.weight} ${TEXT_MEASUREMENT_SIZE}px ${fontFamilies[item.font]}`;
   ink.font = font;
   const lines = [];
+  const values = item.text.split("\n");
   let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
-  for (const [index, value] of item.text.split("\n").entries()) {
+  for (const [index, value] of values.entries()) {
     const text = value.trimEnd();
     if (!text) continue;
-    const baseline = index * 115;
+    const baseline = index * TEXT_LINE_SPACING;
     const metrics = ink.measureText(text);
     if (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent <= 0) continue;
-    left = Math.min(left, -metrics.actualBoundingBoxLeft);
-    right = Math.max(right, metrics.actualBoundingBoxRight);
+    const lineLeft = -metrics.actualBoundingBoxLeft;
+    const lineRight = metrics.actualBoundingBoxRight;
+    left = Math.min(left, lineLeft);
+    right = Math.max(right, lineRight);
     top = Math.min(top, baseline - metrics.actualBoundingBoxAscent);
     bottom = Math.max(bottom, baseline + metrics.actualBoundingBoxDescent);
-    lines.push({ text, baseline });
+    lines.push({ text, baseline, left: fixedSize && /^\s/.test(text) ? Math.min(0, lineLeft) : lineLeft, right: lineRight });
   }
-  if (!lines.length || right <= left) return { width: item.size, height: item.size };
+  if (!lines.length || right <= left) {
+    return { width: fixedSize ? item.width : item.size, height: fixedSize ? item.height : item.size };
+  }
+
+  if (fixedSize) {
+    // Include blank lines at either end when positioning the text block.
+    top -= lines[0].baseline;
+    bottom += (values.length - 1) * TEXT_LINE_SPACING - lines.at(-1).baseline;
+  }
 
   const widthFactor = item.font === "narrow" ? 0.76 : 1;
-  const aspectRatio = (right - left) * widthFactor / (bottom - top);
-  const height = fitHeight(item.size, aspectRatio);
-  const scale = height / (bottom - top);
+  const textHeight = bottom - top;
+  const aspectRatio = (right - left) * widthFactor / textHeight;
+  const height = fixedSize ? item.height : fitHeight(item.size, aspectRatio);
+  const width = fixedSize ? item.width : Math.min(MAX_ARTWORK_WIDTH, Math.ceil(aspectRatio * height));
+  const scale = fixedSize ? item.size / TEXT_MEASUREMENT_SIZE : height / textHeight;
   const horizontalScale = scale * widthFactor;
+  const alignX = horizontalAlignment[item.alignX];
+  const y = fixedSize ? (height / scale - textHeight) * verticalAlignment[item.alignY] - top : -top;
   return {
-    width: Math.min(MAX_ARTWORK_WIDTH, Math.ceil(aspectRatio * height)),
-    height,
+    width, height,
+    fontSize: TEXT_MEASUREMENT_SIZE * scale,
+    textHeight: textHeight * scale,
     draw(context) {
+      if (fixedSize) {
+        context.beginPath();
+        context.rect(0, 0, width, height);
+        context.clip();
+      }
       context.scale(horizontalScale, scale);
-      context.translate(-left, -top);
       context.font = font;
-      for (const { text, baseline } of lines) context.fillText(text, 0, baseline);
+      for (const { text, baseline, left: lineLeft, right: lineRight } of lines) {
+        const x = fixedSize ? (width / horizontalScale - (lineRight - lineLeft)) * alignX - lineLeft : -left;
+        context.fillText(text, x, baseline + y);
+      }
     },
   };
 }
@@ -3612,6 +3729,7 @@ function graphicLayout(item) {
 }
 
 function itemSizeLimits(item) {
+  if (isFixedText(item)) return { min: 1, max: MAX_ARTWORK_WIDTH };
   const max = item.graphic?.maxHeight ?? MAX_ITEM_HEIGHT;
   return { min: Math.min(MIN_ITEM_HEIGHT, max), max };
 }
@@ -3670,11 +3788,22 @@ function shapeLayout(item) {
   };
 }
 
-function resizeShape(item, width, height) {
+function boxSizeLimits(item) {
   const sideways = item.rotation % 180 !== 0;
-  const min = 2 * item.lineWidth + 1;
-  const nextWidth = clamp(Math.round(sideways ? height : width), min, MAX_ARTWORK_WIDTH);
-  const nextHeight = clamp(Math.round(sideways ? width : height), min, MAX_ITEM_HEIGHT);
+  return {
+    min: isShape(item) ? 2 * item.lineWidth + 1 : 1,
+    maxWidth: sideways ? MAX_ITEM_HEIGHT : MAX_ARTWORK_WIDTH,
+    maxHeight: sideways ? MAX_ARTWORK_WIDTH : MAX_ITEM_HEIGHT,
+  };
+}
+
+function resizeBox(item, width, height) {
+  const { min, maxWidth, maxHeight } = boxSizeLimits(item);
+  const sideways = item.rotation % 180 !== 0;
+  width = clamp(Math.round(width), min, maxWidth);
+  height = clamp(Math.round(height), min, maxHeight);
+  const nextWidth = sideways ? height : width;
+  const nextHeight = sideways ? width : height;
   if (item.width === nextWidth && item.height === nextHeight) return false;
   item.width = nextWidth;
   item.height = nextHeight;
@@ -3735,7 +3864,7 @@ function rotateLayout(layout, rotation) {
 
 function layoutItem(item) {
   const layout = itemLayouts[item.kind](item);
-  if (item.kind !== "line" && !isShape(item)) item.size = layout.height;
+  if (item.kind !== "line" && !hasBoxSize(item)) item.size = layout.height;
   item.layout = rotateLayout(layout, item.rotation);
   placeItem(item);
 }
@@ -3751,15 +3880,24 @@ function drawItems(context, entries, offsetX, offsetY) {
 }
 
 function renderArtwork() {
-  const printable = items.filter(({ x, y, layout }) => layout.draw && x + layout.width > 0
-    && x < MAX_ARTWORK_WIDTH && y < PRINTABLE_HEIGHT && y + layout.height > 0);
-  if (!printable.length) return null;
+  const printable = items.filter((item) => {
+    const { x, y, layout } = item;
+    return (layout.draw || isFixedText(item)) && x + layout.width > 0
+      && x < MAX_ARTWORK_WIDTH && y < PRINTABLE_HEIGHT && y + layout.height > 0;
+  });
+  if (!printable.some(({ layout }) => layout.draw)) return null;
   const { left: leftMargin, right: rightMargin } = margins;
   // Leave one spare dot outside the layout estimates for antialiasing.
   let left = MAX_ARTWORK_WIDTH, right = 0;
+  let fixedLeft = MAX_ARTWORK_WIDTH, fixedRight = 0;
   for (const item of printable) {
+    const itemRight = item.x + item.layout.width;
     left = Math.min(left, item.x - 1);
-    right = Math.max(right, item.x + item.layout.width + 1);
+    right = Math.max(right, itemRight + 1);
+    if (isFixedText(item)) {
+      fixedLeft = Math.min(fixedLeft, item.x);
+      fixedRight = Math.max(fixedRight, itemRight);
+    }
   }
   right = Math.min(MAX_ARTWORK_WIDTH, Math.ceil(right));
   left = Math.floor(left);
@@ -3792,9 +3930,14 @@ function renderArtwork() {
     }
   }
   if (last === -1) return null;
+  // Fixed text reserves its box width on the tape, including space around the ink.
+  if (fixedLeft < fixedRight) {
+    first = Math.min(first, Math.max(0, Math.floor(fixedLeft)) - origin);
+    last = Math.max(last, Math.min(MAX_ARTWORK_WIDTH, Math.ceil(fixedRight)) - origin - 1);
+  }
   const sourceX = first - leftMargin;
   const labelWidth = last - first + 1 + leftMargin + rightMargin;
-  // Crop to the normal artwork bounds before inverting so the label keeps its size.
+  // Set the label bounds before inverting so the label keeps its size.
   if (labelInvert.checked) {
     for (let y = 0; y < PRINTABLE_HEIGHT; y++) {
       for (let x = sourceX; x < sourceX + labelWidth; x++) {
@@ -4068,23 +4211,24 @@ function updateItemPicker() {
 }
 
 function updatePlacementInputs() {
-  const shape = isShape(selected);
-  sizeControl.hidden = shape || selected.kind === "line";
+  const fixedText = isFixedText(selected);
+  const box = hasBoxSize(selected);
+  sizeControl.hidden = isShape(selected) || selected.kind === "line";
   if (!sizeControl.hidden) {
     const { min, max } = itemSizeLimits(selected);
-    sizeLabel.textContent = selected.rotation % 180 ? "Width (mm)" : "Height (mm)";
+    sizeLabel.textContent = fixedText ? "Font size (mm)" : selected.rotation % 180 ? "Width (mm)" : "Height (mm)";
     sizeInput.min = toMillimetres(min);
     sizeInput.max = toMillimetres(max);
     sizeInput.value = toMillimetres(selected.size);
   }
-  for (const control of shapeSizeControls) control.hidden = !shape;
-  if (shape) {
-    const sideways = selected.rotation % 180 !== 0;
-    shapeWidthInput.min = shapeHeightInput.min = toMillimetres(2 * selected.lineWidth + 1);
-    shapeWidthInput.max = toMillimetres(sideways ? MAX_ITEM_HEIGHT : MAX_ARTWORK_WIDTH);
-    shapeHeightInput.max = toMillimetres(sideways ? MAX_ARTWORK_WIDTH : MAX_ITEM_HEIGHT);
-    shapeWidthInput.value = toMillimetres(selected.layout.width);
-    shapeHeightInput.value = toMillimetres(selected.layout.height);
+  for (const control of boxSizeControls) control.hidden = !box;
+  if (box) {
+    const { min, maxWidth, maxHeight } = boxSizeLimits(selected);
+    boxWidthInput.min = boxHeightInput.min = toMillimetres(min);
+    boxWidthInput.max = toMillimetres(maxWidth);
+    boxHeightInput.max = toMillimetres(maxHeight);
+    boxWidthInput.value = toMillimetres(selected.layout.width);
+    boxHeightInput.value = toMillimetres(selected.layout.height);
   }
   const { minX, maxX, minY, maxY } = placementLimits(selected);
   xInput.step = yInput.step = toMillimetres(selected.layout.endpoints ? 1 : .5);
@@ -4103,12 +4247,22 @@ function updateRotationOptions() {
   }
 }
 
+function updateTextAlignment() {
+  const fixed = isFixedText(selected);
+  fixedSizeInput.checked = fixed;
+  textAlignments.hidden = !fixed;
+  for (const [property, buttons] of alignmentButtons) {
+    for (const button of buttons) button.setAttribute("aria-pressed", String(fixed && selected[property] === button.value));
+  }
+}
+
 function selectItem(item) {
   if (drag && item !== selected) endDrag();
   selected = item;
   itemPicker.value = item?.id ?? "";
   copyButton.disabled = removeButton.disabled = !item;
   updateLineSettings();
+  updateTextAlignment();
   itemInvertOption.hidden = item?.kind !== "graphic";
   if (!itemInvertOption.hidden) itemInvert.checked = Boolean(item.inverted);
   if (item) {
@@ -4291,6 +4445,32 @@ weightInput.addEventListener("change", () => {
   selected.weight = weightInput.value;
   updateSelectedLayout();
 });
+fixedSizeInput.addEventListener("change", () => {
+  if (selected?.kind !== "text" || fixedSizeInput.checked === isFixedText(selected)) return;
+  if (drag) endDrag();
+  const layout = selected.layout.unrotated ?? selected.layout;
+  selected.fixedSize = fixedSizeInput.checked;
+  if (selected.fixedSize) {
+    selected.width = Math.max(1, layout.width);
+    selected.height = Math.max(1, layout.height);
+    selected.alignX ??= "left";
+    selected.alignY ??= "top";
+  }
+  const size = (selected.fixedSize ? layout.fontSize : layout.textHeight) ?? selected.size;
+  const { min, max } = itemSizeLimits(selected);
+  selected.size = clamp(Math.round(size), min, max);
+  updateTextAlignment();
+  updateSelectedLayout();
+  revealSelected();
+});
+for (const [property, buttons] of alignmentButtons) {
+  for (const button of buttons) button.addEventListener("click", () => {
+    if (!isFixedText(selected) || selected[property] === button.value) return;
+    selected[property] = button.value;
+    updateTextAlignment();
+    updateSelectedLayout();
+  });
+}
 itemInvert.addEventListener("change", () => {
   if (selected?.kind !== "graphic") return;
   selected.inverted = itemInvert.checked;
@@ -4314,14 +4494,14 @@ rotationInput.addEventListener("change", () => {
   revealSelected();
 });
 for (const [input, property] of [
-  [sizeInput, "size"], [shapeWidthInput, "width"], [shapeHeightInput, "height"], [xInput, "x"], [yInput, "y"],
+  [sizeInput, "size"], [boxWidthInput, "width"], [boxHeightInput, "height"], [xInput, "x"], [yInput, "y"],
 ]) {
   input.addEventListener("change", () => {
     if (!selected || input.parentElement.hidden) return;
     if (Number.isFinite(input.valueAsNumber)) {
       const dots = input.valueAsNumber * DOTS_PER_MM;
       if (property === "width" || property === "height") {
-        resizeShape(selected, property === "width" ? dots : selected.layout.width,
+        resizeBox(selected, property === "width" ? dots : selected.layout.width,
           property === "height" ? dots : selected.layout.height);
       } else if (property === "x" || property === "y") {
         moveSelection(property === "x" ? dots : selected.x, property === "y" ? dots : selected.y);
@@ -4419,8 +4599,8 @@ function updateDrag() {
   }
 
   const { corner, width, height, size, x, y } = drag;
-  if (isShape(selected)) {
-    if (!resizeShape(selected, width + dx * corner.x, height + dy * corner.y)) return;
+  if (hasBoxSize(selected)) {
+    if (!resizeBox(selected, width + dx * corner.x, height + dy * corner.y)) return;
   } else {
     // Project pointer movement onto the original resize diagonal to keep the aspect ratio.
     const change = (dx * corner.x * width + dy * corner.y * height) / (width * width + height * height);
@@ -4937,7 +5117,12 @@ function saveLabelItem(item, imageSources) {
   if (kind === "line") return { ...placement, shapeIndex: item.shapeIndex, dx: item.dx, dy: item.dy, lineWidth: item.lineWidth };
   if (isShape(item)) return { ...placement, shapeIndex: item.shapeIndex, width: item.width, height: item.height, lineWidth: item.lineWidth };
   const geometry = { ...placement, size: item.size };
-  if (kind === "text") return { ...geometry, text: item.text, font: item.font, weight: item.weight };
+  if (kind === "text") {
+    const { text, font, weight, width, height, alignX, alignY } = item;
+    const fixedSize = isFixedText(item);
+    const saved = { ...geometry, text, font, weight, fixedSize };
+    return fixedSize ? { ...saved, width, height, alignX, alignY } : saved;
+  }
   if (kind === "icon") return { ...geometry, name: item.name, svg: item.icon.source };
   const { name, graphic: { source }, threshold, inverted } = item;
   if (!imageSources.has(source)) imageSources.set(source, imageSources.size);
@@ -5018,10 +5203,18 @@ async function openLabelItem(saved, images, graphics) {
   const geometry = { kind, x, y, size, rotation };
   switch (kind) {
     case "text": {
-      const { text, font, weight } = saved;
+      const { text, font: savedFont, weight, fixedSize = false, width, height, alignX, alignY } = saved;
+      const font = ["nunito", "barlow-condensed"].includes(savedFont) ? "saira-extra-condensed" : savedFont;
       if (typeof text !== "string" || typeof font !== "string" || !Object.hasOwn(fontFamilies, font)
-        || !["400", "700"].includes(weight)) throw new Error("Invalid text settings.");
-      return { ...geometry, text, font, weight };
+        || !["400", "700"].includes(weight) || typeof fixedSize !== "boolean") throw new Error("Invalid text settings.");
+      const fontLoad = bundledFontLoads.get(font);
+      if (fontLoad && !(await fontLoad)) throw new Error("This label's font could not be loaded.");
+      const item = { ...geometry, text, font, weight, fixedSize };
+      if (!fixedSize) return item;
+      if (!isIntegerBetween(width, 1, MAX_ARTWORK_WIDTH) || !isIntegerBetween(height, 1, MAX_ITEM_HEIGHT)
+        || typeof alignX !== "string" || typeof alignY !== "string"
+        || !Object.hasOwn(horizontalAlignment, alignX) || !Object.hasOwn(verticalAlignment, alignY)) throw new Error("Invalid fixed text settings.");
+      return { ...item, width, height, alignX, alignY };
     }
     case "icon": {
       const { name, svg } = saved;
@@ -5143,8 +5336,12 @@ function refreshControls() {
   const identity = connected
     ? `Connected: ${connection.model} (${connection.channel.transport.displayName})`
     : "Connected: none";
-  if (connectionIdentity.textContent !== identity) connectionIdentity.textContent = identity;
-  connectionIdentity.title = identity;
+  const batteryPercent = connection?.channel.batteryPercent;
+  const battery = !connected ? "" : batteryPercent === null ? "Battery unknown" : `Battery ≈${batteryPercent}%`;
+  if (connectionDevice.textContent !== identity) connectionDevice.textContent = identity;
+  if (connectionBattery.textContent !== battery) connectionBattery.textContent = battery;
+  connectionBattery.hidden = !connected;
+  connectionIdentity.title = battery ? `${identity} · ${battery}` : identity;
   scanAll.disabled = working || connected || !isSecureContext || !navigator.bluetooth;
   connectButton.disabled = working;
   connectButton.textContent = connected ? "Disconnect" : "Connect";
@@ -5222,7 +5419,9 @@ labelForm.addEventListener("submit", async (event) => {
 const themeToggle = document.querySelector("#theme-toggle");
 const themeRoot = document.documentElement;
 function updateThemeToggle() {
-  themeToggle.textContent = themeRoot.dataset.theme === "light" ? "Dark mode" : "Light mode";
+  const label = themeRoot.dataset.theme === "light" ? "Switch to dark mode" : "Switch to light mode";
+  themeToggle.setAttribute("aria-label", label);
+  themeToggle.title = label;
 }
 themeToggle.addEventListener("click", () => {
   const theme = themeRoot.dataset.theme === "light" ? "dark" : "light";
