@@ -93,8 +93,24 @@
     .primary-reading .unit { font-size: 1.3rem; letter-spacing: 0; }
     .caption, .metadata dt, .metric dt, .port-state { color: var(--muted); font-size: .875rem; }
     .chart { min-width: 0; }
-    #history { display: block; width: 100%; height: 4.35rem; }
-    .chart .caption { display: block; margin-top: .25rem; text-align: right; }
+    .history-preview { display: block; width: 100%; padding: .4rem .55rem; background: #10191f; }
+    .history-preview .caption { display: block; margin-top: .25rem; text-align: right; }
+    .history-canvas { display: block; width: 100%; }
+    #history { height: 4.35rem; }
+    #history-dialog { width: min(66rem, calc(100% - 2rem)); }
+    #expanded-history { height: clamp(12rem, 55vh, 32rem); margin-top: .85rem; background: #10191f; border-radius: .6rem; }
+    .history-window-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; margin-top: .85rem; }
+    .history-window-controls label { display: grid; gap: .25rem; }
+    .history-position { flex: 1 1 10rem; }
+    #history-position { width: 100%; margin: 0; min-height: 2.6rem; accent-color: var(--accent); }
+    .chart-channels { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem; }
+    .chart-channels button {
+      display: inline-flex; align-items: center; gap: .3rem; min-height: 1.8rem; padding: .25rem .4rem;
+      border-radius: .4rem; color: var(--muted); font-size: .8125rem;
+    }
+    .chart-channels button::before { content: ""; width: .55rem; height: .55rem; border: 1px solid; border-radius: 50%; }
+    .chart-channels button[aria-pressed="true"] { border-color: var(--channel-color); color: var(--text); }
+    .chart-channels button[aria-pressed="true"]::before { background: var(--channel-color); border-color: var(--channel-color); }
     .metadata { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .45rem 1rem; align-items: baseline; margin-top: .8rem; }
     .metadata dd { font: .875rem var(--mono); text-align: right; overflow-wrap: anywhere; }
 
@@ -114,7 +130,7 @@
     .power-state { color: var(--muted); font-size: .8125rem; }
     .port-toggle[data-enabled="true"] .power-state { color: var(--accent); }
     .port-tools { display: flex; align-items: center; gap: .5rem .7rem; flex-wrap: wrap; margin-top: .75rem; }
-    .timer-count { color: var(--muted); font: .875rem var(--mono); }
+    .shutdown-state { color: var(--muted); font: .875rem var(--mono); }
     .port-message { margin-top: .5rem; color: var(--warning); font-size: .875rem; }
     .device-name { margin-top: .55rem; color: var(--muted); font-size: .875rem; overflow-wrap: anywhere; }
     .charger-settings { display: grid; grid-template-columns: 1fr 1.7fr; gap: .85rem; margin-top: 1rem; }
@@ -130,8 +146,9 @@
     .settings-divider { padding-top: .9rem; margin-top: .9rem; border-top: 1px solid var(--line); }
     dialog { width: min(26rem, calc(100% - 2rem)); color: var(--text); }
     dialog::backdrop { background: #04070bc4; }
-    .timer-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin: 1rem 0; }
-    .timer-inputs input {
+    .shutdown-mode { display: grid; gap: .25rem; margin-top: .75rem; }
+    .shutdown-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin: 1rem 0; }
+    .shutdown-inputs input {
       display: block;
       width: 100%;
       margin-top: .25rem;
@@ -142,8 +159,8 @@
       color: var(--text);
       font: inherit;
     }
-    .timer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
-    #set-timer { background: var(--accent); color: #092019; }
+    .shutdown-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+    #set-shutdown { background: var(--accent); color: #092019; }
 
     details { margin-top: 1rem; }
     summary { font-weight: 650; }
@@ -203,8 +220,11 @@
             <p class="caption" id="active-ports">Waiting for telemetry</p>
           </div>
           <div class="chart">
-            <canvas id="history" role="img" aria-label="Total output over the last 60 seconds"></canvas>
-            <span class="caption">Last 60 seconds</span>
+            <button id="expand-history" class="history-preview" type="button" aria-label="Expand power output graph" aria-haspopup="dialog">
+              <canvas id="history" class="history-canvas" aria-hidden="true"></canvas>
+              <span class="caption">Last 60 seconds · Expand</span>
+            </button>
+            <div id="chart-channels" class="chart-channels" role="group" aria-label="Power output channels"></div>
           </div>
         </div>
       </section>
@@ -222,7 +242,7 @@
     <section aria-labelledby="ports-title">
       <div class="panel-header ports-heading">
         <h2 id="ports-title">USB port telemetry</h2>
-        <span class="caption">USB-A A1 and A2 share power and timer controls</span>
+        <span class="caption">USB-A A1 and A2 share power and Auto shutdown controls</span>
       </div>
       <div id="ports" class="ports"></div>
     </section>
@@ -299,20 +319,57 @@
       </p>
     </details>
 
-    <dialog id="timer-dialog" class="panel" aria-labelledby="timer-title">
-      <form id="timer-form">
-        <h2 id="timer-title">Shutdown timer</h2>
+    <dialog id="history-dialog" class="panel" aria-labelledby="history-title">
+      <header class="panel-header">
+        <div>
+          <h2 id="history-title">Power output history</h2>
+          <p class="caption" id="history-range">Last 10 minutes</p>
+        </div>
+        <button id="close-history" type="button" autofocus>Close</button>
+      </header>
+      <canvas id="expanded-history" class="history-canvas" role="img" aria-label="Selected power channels in watts" aria-describedby="history-range"></canvas>
+      <div id="expanded-channels" class="chart-channels" role="group" aria-label="Power output channels"></div>
+      <div class="history-window-controls">
+        <label class="caption">Zoom
+          <select id="history-zoom" class="setting-input">
+            <option value="600">10 minutes</option>
+            <option value="300">5 minutes</option>
+            <option value="120">2 minutes</option>
+            <option value="60">1 minute</option>
+            <option value="30">30 seconds</option>
+          </select>
+        </label>
+        <label class="caption history-position">History position
+          <input id="history-position" type="range" min="0" max="0" step="1" value="0" aria-valuetext="Live" disabled>
+        </label>
+        <button id="history-live" type="button" disabled>Back to live</button>
+      </div>
+    </dialog>
+
+    <dialog id="shutdown-dialog" class="panel" aria-labelledby="shutdown-title">
+      <form id="shutdown-form">
+        <h2 id="shutdown-title">Auto shutdown</h2>
+        <label class="shutdown-mode">Shutdown condition
+          <select id="shutdown-mode" class="setting-input">
+            <option value="timer">After a set time</option>
+            <option value="threshold">Below a wattage threshold</option>
+          </select>
+        </label>
         <p id="timer-description" class="help">The charger runs the timer after you disconnect.</p>
-        <div class="timer-inputs">
+        <p id="threshold-description" class="help" hidden>The port switches off when a new reading is below the threshold. Keep this page open and connected over Bluetooth; disconnecting clears the threshold.<span id="shared-threshold" hidden> A1 and A2 use their combined wattage.</span></p>
+        <div id="timer-inputs" class="shutdown-inputs">
           <label>Minutes <input id="timer-minutes" type="number" inputmode="numeric" min="0" max="1435" step="1" value="0" required></label>
           <label>Seconds <input id="timer-seconds" type="number" inputmode="numeric" min="0" max="59" step="1" value="0" required></label>
         </div>
-        <p id="timer-state" class="caption"></p>
-        <p id="timer-message" class="port-message" role="status"></p>
-        <div class="timer-actions">
-          <button id="set-timer" type="submit">Set timer</button>
-          <button id="cancel-timer" type="button">Clear timer</button>
-          <button id="close-timer" type="button">Close</button>
+        <div id="threshold-inputs" class="shutdown-inputs" hidden>
+          <label>Threshold (W) <input id="shutdown-watts" type="number" inputmode="decimal" min="0.01" step="0.01" aria-describedby="threshold-description" required disabled></label>
+        </div>
+        <p id="shutdown-state" class="caption"></p>
+        <p id="shutdown-message" class="port-message" role="status"></p>
+        <div class="shutdown-actions">
+          <button id="set-shutdown" type="submit">Set timer</button>
+          <button id="clear-shutdown" type="button">Clear timer</button>
+          <button id="close-shutdown" type="button">Close</button>
         </div>
       </form>
     </dialog>
@@ -335,8 +392,8 @@
         </dl>
         <p class="device-name" data-field="device" hidden></p>
         <div class="port-tools">
-          <button data-field="timer" type="button" disabled>Shutdown timer</button>
-          <span class="timer-count" data-field="countdown"></span>
+          <button data-field="shutdown" type="button" disabled>Auto shutdown</button>
+          <span class="shutdown-state" data-field="shutdownState"></span>
         </div>
         <p class="port-message" data-field="message" role="status" hidden></p>
       </article>
@@ -477,7 +534,11 @@
     };
     const MAX_TIMER_SECONDS = 86100;
     const STALE_MS = 18000;
-    const HISTORY_MS = 60000;
+    const HISTORY_MS = 600000;
+    const HISTORY_PREVIEW_MS = 60000;
+    const HISTORY_BUCKET_MS = 250;
+    const HISTORY_CHANNELS = ["Total", ...PORTS];
+    const HISTORY_COLORS = ["#79e7cb", "#7bbaff", "#ffcf70", "#bb9dff", "#ff94ad", "#f5a570", "#b3dc76"];
 
     const bytes = (...values) => Uint8Array.of(...values);
     const fromHex = hex => Uint8Array.from(hex.match(/../g), item => parseInt(item, 16));
@@ -980,18 +1041,34 @@
       firmware: find("firmware"),
       lastReading: find("last-reading"),
       graph: find("history"),
+      expandHistory: find("expand-history"),
+      historyDialog: find("history-dialog"),
+      expandedGraph: find("expanded-history"),
+      closeHistory: find("close-history"),
+      historyRange: find("history-range"),
+      historyZoom: find("history-zoom"),
+      historyPosition: find("history-position"),
+      historyLive: find("history-live"),
+      channels: [find("chart-channels"), find("expanded-channels")],
       log: find("log"),
       copy: find("copy-log"),
-      timerDialog: find("timer-dialog"),
-      timerTitle: find("timer-title"),
-      timerForm: find("timer-form"),
+      shutdownDialog: find("shutdown-dialog"),
+      shutdownTitle: find("shutdown-title"),
+      shutdownForm: find("shutdown-form"),
+      shutdownMode: find("shutdown-mode"),
+      timerDescription: find("timer-description"),
+      timerInputs: find("timer-inputs"),
       timerMinutes: find("timer-minutes"),
       timerSeconds: find("timer-seconds"),
-      timerState: find("timer-state"),
-      timerMessage: find("timer-message"),
-      setTimer: find("set-timer"),
-      cancelTimer: find("cancel-timer"),
-      closeTimer: find("close-timer"),
+      thresholdDescription: find("threshold-description"),
+      sharedThreshold: find("shared-threshold"),
+      thresholdInputs: find("threshold-inputs"),
+      shutdownWatts: find("shutdown-watts"),
+      shutdownState: find("shutdown-state"),
+      shutdownMessage: find("shutdown-message"),
+      setShutdown: find("set-shutdown"),
+      clearShutdown: find("clear-shutdown"),
+      closeShutdown: find("close-shutdown"),
       brightnessForm: find("brightness-form"),
       brightness: find("screen-brightness"),
       brightnessValue: find("brightness-value"),
@@ -1017,8 +1094,8 @@
       const group = Math.min(index, PORT_GROUPS.length - 1);
       fields.name.textContent = "USB-" + port[0] + " " + port;
       fields.toggle.addEventListener("click", () => togglePort(group));
-      fields.timer.addEventListener("click", () => openTimer(group));
-      fields.timer.setAttribute("aria-label", "Shutdown timer for " + PORT_GROUPS[group]);
+      fields.shutdown.addEventListener("click", () => openShutdown(group));
+      fields.shutdown.setAttribute("aria-label", "Auto shutdown for " + PORT_GROUPS[group]);
       card.querySelector(".port-icon").classList.toggle("type-a", port[0] === "A");
       find("ports").append(card);
       return { card, group, ...fields };
@@ -1029,11 +1106,13 @@
     let token;
     let readings = Array(PORTS.length).fill(null);
     let identities = Array(4).fill(null);
-    let history = [];
+    const history = HISTORY_CHANNELS.map(() => []);
+    const visibleChannels = new Set([0]);
+    let historyEnd = null;
     let lastReading = 0;
     let telemetryLogged = false;
     let settings = PORT_GROUPS.map(() => ({}));
-    let timerGroup = null;
+    let shutdownGroup = null;
     let chargerConfig = {};
     let configAction = null;
     const configDrafts = new Set();
@@ -1069,7 +1148,8 @@
     function resetTelemetry() {
       readings = Array(PORTS.length).fill(null);
       identities = Array(4).fill(null);
-      history = [];
+      for (const series of history) series.length = 0;
+      historyEnd = null;
       lastReading = 0;
       telemetryLogged = false;
       settings = PORT_GROUPS.map(() => ({}));
@@ -1078,8 +1158,8 @@
       configDrafts.clear();
       configMessages.screen = "";
       configMessages.charging = "";
-      if (ui.timerDialog.open) ui.timerDialog.close();
-      timerGroup = null;
+      if (ui.shutdownDialog.open) ui.shutdownDialog.close();
+      shutdownGroup = null;
       ui.serial.textContent = "—";
       ui.firmware.textContent = "—";
       render();
@@ -1239,10 +1319,12 @@
         if ("enabled" in change) {
           port.enabled = change.enabled;
           port.enabledAt = time;
+          if (!change.enabled) port.threshold = null;
         }
         if ("timer" in change) {
           port.timer = change.timer;
           port.timerAt = time;
+          if (change.timer) port.threshold = null;
         }
         const pending = port.pending;
         if (pending && pending.field in change && pending.matches(change[pending.field])) {
@@ -1255,7 +1337,7 @@
     async function changeSetting(index, field, matches, send, success, unconfirmed) {
       const session = connection;
       const port = settings[index];
-      if (!session?.ready || port.pending) return;
+      if (!session?.ready || port.pending) return false;
       const pending = { field, matches, confirmed: false };
       port.pending = pending;
       port.message = "";
@@ -1263,12 +1345,16 @@
       try {
         await send(session);
         const confirmed = await waitForSetting(session, () => pending.confirmed, [150, 350, 650, 1100]);
+        if (connection !== session) return false;
         if (!confirmed) throw new Error(unconfirmed(port));
         port.message = success;
+        return true;
       } catch (error) {
-        if (connection !== session) return;
-        port.message = describe(error);
-        writeLog(PORT_GROUPS[index] + " · " + port.message);
+        if (connection === session) {
+          port.message = describe(error);
+          writeLog(PORT_GROUPS[index] + " · " + port.message);
+        }
+        return false;
       } finally {
         port.pending = null;
         if (connection === session) renderControls(Date.now());
@@ -1282,10 +1368,13 @@
     function togglePort(index) {
       const state = currentSwitch(settings[index], Date.now());
       if (state === null) return;
-      const enabled = !state;
+      return setPortPower(index, !state);
+    }
+
+    function setPortPower(index, enabled, success = enabled ? "Port switched on." : "Port switched off.") {
       return changeSetting(index, "enabled", value => value === enabled,
         session => session.setPortEnabled(index, enabled),
-        enabled ? "Port switched on." : "Port switched off.",
+        success,
         () => "The charger did not confirm the power change.");
     }
 
@@ -1305,17 +1394,37 @@
         });
     }
 
-    function openTimer(index) {
+    async function setThreshold(index, watts) {
+      const session = connection;
+      const port = settings[index];
+      if (!session?.ready || port.pending) return;
+      if (port.timer !== null || Date.now() - port.timerAt >= STALE_MS) {
+        if (!await setTimer(index, 0) || connection !== session) return;
+      }
+      const now = Date.now();
+      if (currentSwitch(port, now) === true && port.timer === null) {
+        port.threshold = watts;
+        port.message = "Wattage threshold armed.";
+      } else {
+        port.message = "Could not arm the threshold. Check that the port is on and its timer is cleared.";
+      }
+      renderControls(now);
+    }
+
+    function openShutdown(index) {
       const port = settings[index];
       if (!connection?.ready || port.pending) return;
-      timerGroup = index;
-      ui.timerTitle.textContent = PORT_GROUPS[index] + " shutdown timer";
+      shutdownGroup = index;
+      ui.shutdownTitle.textContent = "Auto shutdown for " + PORT_GROUPS[index];
+      ui.shutdownMode.value = port.threshold != null ? "threshold" : "timer";
+      ui.shutdownWatts.value = port.threshold ?? "";
+      ui.sharedThreshold.hidden = index !== PORT_GROUPS.length - 1;
       const seconds = port.timer?.seconds || 0;
       ui.timerMinutes.value = Math.floor(seconds / 60);
       ui.timerSeconds.value = seconds % 60;
       port.message = "";
       renderControls(Date.now());
-      ui.timerDialog.showModal();
+      ui.shutdownDialog.showModal();
     }
 
     function timerLabel(port, now) {
@@ -1323,6 +1432,10 @@
       const remaining = Math.max(0, port.timer.remaining - Math.floor((now - port.timerAt) / 1000));
       if (remaining === 0) return "Due";
       return Math.floor(remaining / 60) + ":" + String(remaining % 60).padStart(2, "0") + " left";
+    }
+
+    function shutdownLabel(port, now) {
+      return port.threshold != null ? "Off below " + port.threshold + " W" : timerLabel(port, now);
     }
 
     function renderControls(now) {
@@ -1336,25 +1449,47 @@
           ? PORT_GROUPS[card.group] + " power state unavailable"
           : "Turn " + (enabled ? "off " : "on ") + PORT_GROUPS[card.group]);
         card.enabled.textContent = enabled === null ? "—" : enabled ? "On" : "Off";
-        card.timer.disabled = !ready || Boolean(port.pending) || (enabled === null && !port.timer);
-        card.countdown.textContent = timerLabel(port, now);
+        card.shutdown.disabled = !ready || Boolean(port.pending) || (enabled === null && !port.timer && port.threshold == null);
+        card.shutdownState.textContent = shutdownLabel(port, now);
         const message = port.pending ? "Waiting for charger confirmation…" : port.message || "";
         card.message.hidden = !message;
         if (card.message.textContent !== message) card.message.textContent = message;
       }
-      if (timerGroup === null) return;
-      const port = settings[timerGroup];
+      if (shutdownGroup === null) return;
+      const port = settings[shutdownGroup];
       const enabled = currentSwitch(port, now);
       const busy = Boolean(port.pending);
-      const timer = timerLabel(port, now);
-      ui.timerState.textContent = timer || (port.timer === null ? "No active timer." : "Waiting for timer status.");
-      ui.timerMinutes.disabled = !ready || busy;
-      ui.timerSeconds.disabled = !ready || busy;
-      ui.setTimer.disabled = !ready || busy || enabled !== true;
-      ui.cancelTimer.disabled = !ready || busy || !timer;
+      const thresholdMode = ui.shutdownMode.value === "threshold";
+      const active = shutdownLabel(port, now);
+      ui.shutdownMode.disabled = !ready || busy;
+      ui.timerDescription.hidden = ui.timerInputs.hidden = thresholdMode;
+      ui.thresholdDescription.hidden = ui.thresholdInputs.hidden = !thresholdMode;
+      ui.timerMinutes.disabled = ui.timerSeconds.disabled = !ready || busy || thresholdMode;
+      ui.shutdownWatts.disabled = !ready || busy || !thresholdMode;
+      ui.shutdownState.textContent = active || (port.timer === null ? "No active auto shutdown." : "Waiting for timer status.");
+      ui.setShutdown.textContent = thresholdMode ? "Set threshold" : "Set timer";
+      ui.setShutdown.disabled = !ready || busy || enabled !== true;
+      ui.clearShutdown.textContent = (port.threshold != null || (!active && thresholdMode)) ? "Clear threshold" : "Clear timer";
+      ui.clearShutdown.disabled = !ready || busy || !active;
       const message = busy ? "Waiting for charger confirmation…" :
-        port.message || (enabled === false ? "Turn on this port to set a timer." : "");
-      if (ui.timerMessage.textContent !== message) ui.timerMessage.textContent = message;
+        port.message || (enabled === false ? "Turn on this port to set Auto shutdown." : "");
+      if (ui.shutdownMessage.textContent !== message) ui.shutdownMessage.textContent = message;
+    }
+
+    function checkThresholds(ports, now) {
+      if (!connection?.ready) return;
+      for (const [index, port] of settings.entries()) {
+        if (port.threshold == null || port.pending || currentSwitch(port, now) !== true) continue;
+        const reading = ports[index];
+        const shared = index === PORT_GROUPS.length - 1;
+        if (!reading || (shared && !ports[index + 1])) continue;
+        // Compare in hundredths of a watt so rounding does not trigger on equality.
+        const centiwatts = Math.round((reading.power + (shared ? ports[index + 1].power : 0)) * 100);
+        if (centiwatts / 100 >= port.threshold) continue;
+        const threshold = port.threshold;
+        port.threshold = null;
+        void setPortPower(index, false, "Port switched off below " + threshold + " W.");
+      }
     }
 
     function freshReading(reading, now) {
@@ -1384,20 +1519,18 @@
 
       readings = ports.map((port, index) => port ? { ...port, time } : readings[index]);
       lastReading = time;
+      ports.forEach((port, index) => {
+        if (port) recordPower(index + 1, time, port.power);
+      });
       const fresh = readings.map(reading => freshReading(reading, time));
       if (fresh.every(Boolean)) {
-        const total = fresh.reduce((sum, port) => sum + port.power, 0);
-        const sample = { time, total };
-        if (history.length && time - history.at(-1).time < 250) {
-          history[history.length - 1] = sample;
-        } else {
-          history.push(sample);
-        }
+        recordPower(0, time, fresh.reduce((sum, port) => sum + port.power, 0));
       }
       if (!telemetryLogged) {
         telemetryLogged = true;
         writeLog("Received A2345 port telemetry.");
       }
+      checkThresholds(ports, time);
       render();
     }
 
@@ -1450,8 +1583,51 @@
       drawHistory(now);
     }
 
+    function recordPower(channel, time, watts) {
+      const series = history[channel];
+      const sample = { time, watts };
+      if (series.length && Math.floor(time / HISTORY_BUCKET_MS) === Math.floor(series.at(-1).time / HISTORY_BUCKET_MS)) {
+        series[series.length - 1] = sample;
+      } else {
+        series.push(sample);
+      }
+    }
+
     function drawHistory(now) {
-      const canvas = ui.graph;
+      for (const series of history) {
+        while (series.length && now - series[0].time > HISTORY_MS) series.shift();
+      }
+      const channels = HISTORY_CHANNELS.map((_, index) => index).filter(index => visibleChannels.has(index));
+      drawHistoryChart(ui.graph, now, now - HISTORY_PREVIEW_MS, now, channels, false);
+      if (!ui.historyDialog.open) return;
+
+      const span = Number(ui.historyZoom.value) * 1000;
+      const maxOffset = HISTORY_MS - span;
+      if (maxOffset === 0) historyEnd = null;
+      // When browsing, hold the selected time until it reaches the rolling history boundary.
+      if (historyEnd !== null) historyEnd = Math.max(now - maxOffset, Math.min(now, historyEnd));
+      const end = historyEnd ?? now;
+      const offset = Math.round((now - end) / 1000);
+      const duration = ui.historyZoom.selectedOptions[0].textContent;
+      const age = offset ? formatHistoryAge(offset) + " ago" : "Live";
+      const range = offset ? duration + " ending " + age : "Last " + duration;
+      if (ui.historyRange.textContent !== range) ui.historyRange.textContent = range;
+      ui.historyPosition.max = String(maxOffset / 1000);
+      ui.historyPosition.valueAsNumber = maxOffset / 1000 - offset;
+      ui.historyPosition.setAttribute("aria-valuetext", age);
+      ui.historyPosition.disabled = maxOffset === 0;
+      ui.historyLive.disabled = historyEnd === null;
+      drawHistoryChart(ui.expandedGraph, now, end - span, end, channels, true);
+    }
+
+    function formatHistoryAge(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const rest = seconds % 60;
+      if (minutes === 0) return rest + "s";
+      return minutes + "m" + (rest ? " " + rest + "s" : "");
+    }
+
+    function drawHistoryChart(canvas, now, start, end, channels, expanded) {
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
       if (!width || !height) return;
@@ -1465,33 +1641,78 @@
       const ctx = canvas.getContext("2d");
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.clearRect(0, 0, width, height);
+      const left = expanded ? 52 : 4;
+      const right = width - (expanded ? 14 : 4);
+      const top = expanded ? 15 : 4;
+      const bottom = height - (expanded ? 28 : 4);
+      const seriesInView = channels.map(channel => ({
+        channel,
+        samples: history[channel].filter(sample => sample.time >= start && sample.time <= end),
+      }));
+      let peak = 1;
+      for (const { samples } of seriesInView) {
+        for (const { watts } of samples) peak = Math.max(peak, watts);
+      }
+      const roughStep = peak / 4;
+      const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+      const step = [1, 2, 2.5, 5, 10].find(value => value * magnitude >= roughStep) * magnitude;
+      const x = time => left + (time - start) / (end - start) * (right - left);
+      const y = watts => bottom - watts / (step * 4) * (bottom - top);
+
       ctx.strokeStyle = "#30434c";
       ctx.lineWidth = 1;
-      for (const y of [3.5, height / 2, height - 3.5]) {
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.fillStyle = "#a4b3c1";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let tick = 0; tick <= 4; tick += expanded ? 1 : 2) {
+        const watts = step * tick;
+        const lineY = y(watts);
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.moveTo(left, lineY);
+        ctx.lineTo(right, lineY);
         ctx.stroke();
+        if (expanded) ctx.fillText(Number(watts.toFixed(2)) + " W", left - 8, lineY);
+      }
+      if (expanded) {
+        const ticks = width < 360 ? 2 : end - start === 30000 ? 3 : 4;
+        for (let tick = 0; tick <= ticks; tick++) {
+          const time = start + (end - start) * tick / ticks;
+          const age = Math.round((now - time) / 1000);
+          const lineX = x(time);
+          ctx.beginPath();
+          ctx.moveTo(lineX, top);
+          ctx.lineTo(lineX, bottom);
+          ctx.stroke();
+          ctx.textAlign = tick === 0 ? "left" : tick === ticks ? "right" : "center";
+          ctx.fillText(age === 0 ? "Now" : formatHistoryAge(age) + (tick === 0 ? " ago" : ""), lineX, bottom + 15);
+        }
       }
 
-      history = history.filter(sample => now - sample.time <= HISTORY_MS);
-      if (!history.length) return;
-      const top = Math.max(10, ...history.map(sample => sample.total));
-      const x = sample => 2 + (1 - (now - sample.time) / HISTORY_MS) * (width - 4);
-      const y = sample => height - 4 - (sample.total / top) * (height - 8);
-      ctx.beginPath();
-      history.forEach((sample, index) => {
-        if (!index || sample.time - history[index - 1].time > STALE_MS) ctx.moveTo(x(sample), y(sample));
-        else ctx.lineTo(x(sample), y(sample));
-      });
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#79e7cb";
-      ctx.stroke();
-      const last = history.at(-1);
-      ctx.beginPath();
-      ctx.arc(x(last), y(last), 2.5, 0, 2 * Math.PI);
-      ctx.fillStyle = "#79e7cb";
-      ctx.fill();
+      if (!seriesInView.some(({ samples }) => samples.length)) {
+        ctx.textAlign = "center";
+        ctx.fillText(channels.length ? "No readings in this range" : "Select a channel", (left + right) / 2, (top + bottom) / 2);
+      }
+      for (const { channel, samples: series } of seriesInView) {
+        if (!series.length) continue;
+        ctx.beginPath();
+        series.forEach((sample, index) => {
+          if (!index || sample.time - series[index - 1].time > STALE_MS) ctx.moveTo(x(sample.time), y(sample.watts));
+          else ctx.lineTo(x(sample.time), y(sample.watts));
+        });
+        ctx.lineWidth = channel === 0 ? 2.75 : 1.75;
+        ctx.strokeStyle = ctx.fillStyle = HISTORY_COLORS[channel];
+        ctx.stroke();
+        series.forEach((sample, index) => {
+          const next = series[index + 1];
+          const isolated = (!index || sample.time - series[index - 1].time > STALE_MS) &&
+            (!next || next.time - sample.time > STALE_MS);
+          if (!isolated && next) return;
+          ctx.beginPath();
+          ctx.arc(x(sample.time), y(sample.watts), channel === 0 ? 3 : 2.25, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
     }
 
     async function connect() {
@@ -1579,23 +1800,73 @@
       writeLog("Disconnected.");
       syncButtons();
     });
-    ui.timerForm.addEventListener("submit", event => {
+    const channelButtons = HISTORY_CHANNELS.map((name, index) => ui.channels.map(group => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = name;
+      button.style.setProperty("--channel-color", HISTORY_COLORS[index]);
+      button.setAttribute("aria-pressed", String(visibleChannels.has(index)));
+      button.addEventListener("click", () => {
+        if (visibleChannels.has(index)) visibleChannels.delete(index);
+        else visibleChannels.add(index);
+        for (const toggle of channelButtons[index]) toggle.setAttribute("aria-pressed", String(visibleChannels.has(index)));
+        drawHistory(Date.now());
+      });
+      group.append(button);
+      return button;
+    }));
+    ui.expandHistory.addEventListener("click", () => {
+      ui.historyDialog.showModal();
+      drawHistory(Date.now());
+    });
+    ui.closeHistory.addEventListener("click", () => ui.historyDialog.close());
+    ui.historyZoom.addEventListener("change", () => drawHistory(Date.now()));
+    ui.historyPosition.addEventListener("input", () => {
+      const now = Date.now();
+      const offset = Number(ui.historyPosition.max) - ui.historyPosition.valueAsNumber;
+      historyEnd = offset ? now - offset * 1000 : null;
+      drawHistory(now);
+    });
+    ui.historyLive.addEventListener("click", () => {
+      historyEnd = null;
+      drawHistory(Date.now());
+    });
+    ui.shutdownMode.addEventListener("change", () => renderControls(Date.now()));
+    ui.shutdownForm.addEventListener("submit", event => {
       event.preventDefault();
-      if (timerGroup === null || ui.setTimer.disabled) return;
+      if (shutdownGroup === null || ui.setShutdown.disabled) return;
+      if (ui.shutdownMode.value === "threshold") {
+        const watts = ui.shutdownWatts.valueAsNumber;
+        if (!Number.isFinite(watts) || watts < 0.01) {
+          settings[shutdownGroup].message = "Enter a wattage threshold of at least 0.01 W.";
+          renderControls(Date.now());
+          return;
+        }
+        void setThreshold(shutdownGroup, watts);
+        return;
+      }
       const seconds = ui.timerMinutes.valueAsNumber * 60 + ui.timerSeconds.valueAsNumber;
       if (!Number.isInteger(seconds) || seconds < 1 || seconds > MAX_TIMER_SECONDS) {
-        settings[timerGroup].message = "Enter a duration between 1 second and 23 hours 55 minutes.";
+        settings[shutdownGroup].message = "Enter a duration between 1 second and 23 hours 55 minutes.";
         renderControls(Date.now());
         return;
       }
-      void setTimer(timerGroup, seconds);
+      void setTimer(shutdownGroup, seconds);
     });
-    ui.cancelTimer.addEventListener("click", () => {
-      if (timerGroup !== null && !ui.cancelTimer.disabled) void setTimer(timerGroup, 0);
+    ui.clearShutdown.addEventListener("click", () => {
+      if (shutdownGroup === null || ui.clearShutdown.disabled) return;
+      const port = settings[shutdownGroup];
+      if (port.threshold != null) {
+        port.threshold = null;
+        port.message = "Wattage threshold cleared.";
+        renderControls(Date.now());
+      } else {
+        void setTimer(shutdownGroup, 0);
+      }
     });
-    ui.closeTimer.addEventListener("click", () => ui.timerDialog.close());
-    ui.timerDialog.addEventListener("close", () => {
-      if (!ui.timerDialog.open) timerGroup = null;
+    ui.closeShutdown.addEventListener("click", () => ui.shutdownDialog.close());
+    ui.shutdownDialog.addEventListener("close", () => {
+      if (!ui.shutdownDialog.open) shutdownGroup = null;
     });
     for (const [input, draft] of [[ui.brightness, "brightness"], [ui.mode, "mode"], ...ui.limits.map(input => [input, "limits"])]) {
       input.addEventListener("input", () => {
@@ -1637,7 +1908,9 @@
       setStatus("Web Bluetooth unavailable", "Open this page in Chrome with Bluetooth enabled.", "error");
     }
     syncButtons();
-    new ResizeObserver(() => drawHistory(Date.now())).observe(ui.graph);
+    const chartObserver = new ResizeObserver(() => drawHistory(Date.now()));
+    chartObserver.observe(ui.graph);
+    chartObserver.observe(ui.expandedGraph);
     setInterval(() => {
       if (connection?.ready) render();
     }, 1000);
