@@ -145,7 +145,10 @@
   figcaption { margin-top: .4rem; }
   .inspector { margin-top: 1rem; }
   .inspector[data-no-selection] > :not(.fields),
-  .inspector[data-no-selection] .fields > :not(#line-settings) { display: none; }
+  .inspector[data-no-selection] .fields > :not(.line-setting) { display: none; }
+  .text-options:not([hidden]) { display: flex; flex-wrap: wrap; column-gap: 1rem; }
+  #text-shadow-settings { flex: 0 0 100%; margin-top: .55rem; }
+  #text-shadow-distance { display: block; max-width: 20rem; accent-color: var(--accent); padding: 0; }
   #text-alignments:not([hidden]) { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .65rem; }
   .text-alignment { display: flex; gap: .25rem; }
   .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr)); align-items: end; gap: .65rem; margin: .65rem 0; }
@@ -157,7 +160,8 @@
   dialog .row { margin-top: .75rem; }
   .file-import { border-top: 1px solid var(--line); margin-top: 1rem; padding-top: 1rem; }
   #graphic-adjustments { margin-top: 1rem; }
-  #graphic-threshold { display: block; accent-color: var(--accent); padding: 0; }
+  #graphic-adjustments .fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); }
+  #graphic-adjustments input[type="range"] { display: block; accent-color: var(--accent); padding: 0; }
   .graphic-preview { display: flex; overflow: auto; max-height: min(32vh, 16rem); padding: .5rem; }
   .graphic-preview canvas {
     flex: none; margin: auto; background: #fff; image-rendering: pixelated; cursor: default; touch-action: auto;
@@ -246,9 +250,18 @@
           <label for="label-text">Text</label>
           <textarea id="label-text" rows="2" maxlength="120" spellcheck="false"></textarea>
         </div>
-        <label class="checkbox-option text-style">
-          <input id="text-fixed-size" type="checkbox"> Fixed size
-        </label>
+        <div class="text-options text-style">
+          <label class="checkbox-option">
+            <input id="text-fixed-size" type="checkbox"> Fixed size
+          </label>
+          <label class="checkbox-option" title="Add a printable drop shadow">
+            <input id="text-shadow" type="checkbox"> Shadow
+          </label>
+          <div id="text-shadow-settings" hidden>
+            <label for="text-shadow-distance">Shadow distance (dots) <span id="text-shadow-distance-value" aria-hidden="true"></span></label>
+            <input id="text-shadow-distance" type="range" min="1" max="16" step="1">
+          </div>
+        </div>
         <div id="text-alignments" hidden>
           <div id="text-align-x" class="text-alignment" role="group" aria-label="Horizontal text alignment">
             <button class="secondary" type="button" value="left" aria-label="Align left" title="Align left" aria-pressed="false">
@@ -277,9 +290,17 @@
           <input id="item-invert" type="checkbox"> Invert black and white
         </label>
         <div class="fields">
-          <div id="line-settings" hidden>
-            <label for="line-width">Line thickness (mm)</label>
+          <div class="line-setting" hidden>
+            <label for="line-width">Thickness</label>
             <input id="line-width" type="number" min="0.125" max="12" step="0.125" value="0.5" inputmode="decimal">
+          </div>
+          <div class="line-setting" hidden>
+            <label for="line-style">Stroke style</label>
+            <select id="line-style">
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
           </div>
           <div class="text-style">
             <label for="text-font">Font</label>
@@ -379,10 +400,22 @@
           <input id="graphic-threshold" type="range" min="0" max="255" value="128">
         </div>
         <div>
+          <label for="graphic-edge-threshold">Edge threshold <span id="graphic-edge-threshold-value" aria-hidden="true">0</span></label>
+          <input id="graphic-edge-threshold" type="range" min="0" max="100" value="0" aria-describedby="graphic-edge-hint">
+        </div>
+        <div>
+          <label for="graphic-edge-thickness">Edge thickness (px) <span id="graphic-edge-thickness-value" aria-hidden="true">1</span></label>
+          <input id="graphic-edge-thickness" type="range" min="0" max="10" step="0.5" value="1" aria-describedby="graphic-edge-thickness-hint">
+        </div>
+        <div>
           <label for="graphic-height">Height (mm)</label>
           <input id="graphic-height" type="number" step="0.125" inputmode="decimal">
         </div>
       </div>
+      <p class="hint">
+        <span id="graphic-edge-hint">Higher thresholds detect fainter edges.</span>
+        <span id="graphic-edge-thickness-hint">Half-pixel widths use a dotted fringe. Setting either edge slider to 0 turns contours off.</span>
+      </p>
       <label class="checkbox-option">
         <input id="graphic-invert" type="checkbox"> Invert black and white
       </label>
@@ -3504,14 +3537,18 @@ const copyButton = document.querySelector("#copy-item");
 const pasteButton = document.querySelector("#paste-item");
 const removeButton = document.querySelector("#remove-item");
 const drawLineButton = document.querySelector("#draw-line");
-const lineSettings = document.querySelector("#line-settings");
-const lineWidthLabel = document.querySelector('label[for="line-width"]');
+const lineSettings = document.querySelectorAll(".line-setting");
 const lineWidthInput = document.querySelector("#line-width");
+const lineStyleInput = document.querySelector("#line-style");
 const inspector = document.querySelector("#item-inspector");
 const textControls = document.querySelectorAll("#text-content, .text-style");
 const fontInput = document.querySelector("#text-font");
 const weightInput = document.querySelector("#text-weight");
 const fixedSizeInput = document.querySelector("#text-fixed-size");
+const textShadowInput = document.querySelector("#text-shadow");
+const textShadowSettings = document.querySelector("#text-shadow-settings");
+const textShadowDistanceInput = document.querySelector("#text-shadow-distance");
+const textShadowDistanceValue = document.querySelector("#text-shadow-distance-value");
 const textAlignments = document.querySelector("#text-alignments");
 const alignmentButtons = [
   ["alignX", document.querySelectorAll("#text-align-x button")],
@@ -3549,6 +3586,8 @@ const MAX_ITEM_HEIGHT = 512;
 const TEXT_MEASUREMENT_SIZE = 100;
 const TEXT_LINE_SPACING = 115;
 const DEFAULT_LINE_WIDTH = 4;
+const DEFAULT_LINE_STYLE = "solid";
+const lineStyles = [DEFAULT_LINE_STYLE, "dashed", "dotted"];
 const HANDLE_OFFSET = 3;
 const HANDLE_SIZE = 8;
 const quarterTurns = {
@@ -3575,6 +3614,7 @@ let previewHeight = canvas.height;
 let drag = null;
 let lineTool = false;
 let lineWidth = DEFAULT_LINE_WIDTH;
+let lineStyle = DEFAULT_LINE_STYLE;
 let scrollFrame = 0;
 let connection = null;
 let working = false;
@@ -3619,6 +3659,24 @@ const bundledFontLoads = new Map(["dosis", "saira-extra-condensed"].map((font) =
 }));
 const horizontalAlignment = { left: 0, center: .5, right: 1 };
 const verticalAlignment = { top: 0, middle: .5, bottom: 1 };
+const shadowTile = document.createElement("canvas");
+shadowTile.width = shadowTile.height = 2;
+const shadowInk = shadowTile.getContext("2d");
+
+function textShadowPattern(context) {
+  shadowInk.clearRect(0, 0, 2, 2);
+  shadowInk.fillStyle = context.fillStyle;
+  shadowInk.fillRect(0, 0, 1, 1);
+  shadowInk.fillRect(1, 1, 1, 1);
+  const pattern = context.createPattern(shadowTile, "repeat");
+  // Keep the dither aligned to the output dots, even for scaled or rotated text.
+  pattern.setTransform(context.getTransform().invertSelf());
+  return pattern;
+}
+
+function textShadowDistance(item, fontSize = item.size) {
+  return item.shadowDistance ?? clamp(Math.round(.08 * fontSize), 1, 8);
+}
 
 function textLayout(item) {
   const { fixedSize } = item;
@@ -3660,22 +3718,35 @@ function textLayout(item) {
   const horizontalScale = scale * widthFactor;
   const alignX = horizontalAlignment[item.alignX];
   const y = fixedSize ? (height / scale - textHeight) * verticalAlignment[item.alignY] - top : -top;
+  const fontSize = TEXT_MEASUREMENT_SIZE * scale;
+  const shadowOffset = item.shadow ? textShadowDistance(item, fontSize) : 0;
+  function drawText(context, offset) {
+    if (offset) context.translate(offset, offset);
+    if (fixedSize) {
+      context.beginPath();
+      context.rect(0, 0, width, height);
+      context.clip();
+    }
+    context.scale(horizontalScale, scale);
+    if (offset) context.fillStyle = textShadowPattern(context);
+    context.font = font;
+    for (const { text, baseline, left: lineLeft, right: lineRight } of lines) {
+      const x = fixedSize ? (width / horizontalScale - (lineRight - lineLeft)) * alignX - lineLeft : -left;
+      context.fillText(text, x, baseline + y);
+    }
+  }
   return {
     width, height,
-    fontSize: TEXT_MEASUREMENT_SIZE * scale,
+    inkPadding: shadowOffset,
+    fontSize,
     textHeight: textHeight * scale,
     draw(context) {
-      if (fixedSize) {
-        context.beginPath();
-        context.rect(0, 0, width, height);
-        context.clip();
+      if (shadowOffset) {
+        context.save();
+        drawText(context, shadowOffset);
+        context.restore();
       }
-      context.scale(horizontalScale, scale);
-      context.font = font;
-      for (const { text, baseline, left: lineLeft, right: lineRight } of lines) {
-        const x = fixedSize ? (width / horizontalScale - (lineRight - lineLeft)) * alignX - lineLeft : -left;
-        context.fillText(text, x, baseline + y);
-      }
+      drawText(context, 0);
     },
   };
 }
@@ -3696,12 +3767,103 @@ function iconLayout(item) {
   };
 }
 
+function graphicBrightness(data, i) {
+  return 30 * data[i] + 59 * data[i + 1] + 11 * data[i + 2];
+}
+
+function graphicContours(data, width, height, edgeThreshold) {
+  const luminance = new Uint8Array(width * height);
+  for (let i = 0; i < luminance.length; i++) {
+    luminance[i] = Math.round(graphicBrightness(data, i * 4) / 100);
+  }
+  const strength = new Uint32Array(luminance.length);
+  const direction = new Uint8Array(luminance.length);
+  const directions = [[1, 0], [0, 1], [1, 1], [-1, 1]];
+  const sectorBoundary = Math.SQRT2 - 1; // tan(22.5°)
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    const above = Math.max(0, y - 1) * width;
+    const below = Math.min(height - 1, y + 1) * width;
+    for (let x = 0; x < width; x++) {
+      const left = Math.max(0, x - 1);
+      const right = Math.min(width - 1, x + 1);
+      const tl = luminance[above + left], tr = luminance[above + right];
+      const bl = luminance[below + left], br = luminance[below + right];
+      const gx = tr - tl + 2 * (luminance[row + right] - luminance[row + left]) + br - bl;
+      const gy = bl + 2 * luminance[below + x] + br - tl - 2 * luminance[above + x] - tr;
+      const absX = Math.abs(gx), absY = Math.abs(gy);
+      strength[row + x] = gx * gx + gy * gy;
+      direction[row + x] = absY <= absX * sectorBoundary ? 0
+        : absX <= absY * sectorBoundary ? 1 : (gx > 0) === (gy > 0) ? 2 : 3;
+    }
+  }
+
+  const contours = new Uint8Array(luminance.length);
+  // A straight step produces a Sobel response four times its contrast.
+  const cutoffSquared = (4 * (96 - 0.9 * edgeThreshold)) ** 2;
+  for (let y = 0, i = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, i++) {
+      const peak = strength[i];
+      if (peak < cutoffSquared) continue;
+      const [dx, dy] = directions[direction[i]];
+      const beforeX = x - dx, beforeY = y - dy;
+      const afterX = x + dx, afterY = y + dy;
+      const before = beforeX >= 0 && beforeX < width && beforeY >= 0 ? strength[beforeY * width + beforeX] : 0;
+      const after = afterX >= 0 && afterX < width && afterY < height ? strength[afterY * width + afterX] : 0;
+      // Keep local peaks across the edge; break ties so a step doesn't produce two lines.
+      if (peak > before && peak >= after) contours[i] = 1;
+    }
+  }
+  return contours;
+}
+
+function widenGraphicContours(contours, width, height, thickness) {
+  if (thickness === 1) return contours;
+  const mask = new Uint8Array(contours.length);
+  const radius = thickness / 2;
+  // A quarter-dot offset keeps the brush nested while giving even widths the right dot count.
+  const offset = .25;
+  const rows = [];
+  for (let dy = Math.ceil(-radius - offset); dy <= Math.floor(radius - offset); dy++) {
+    const span = Math.sqrt(radius ** 2 - (dy + offset) ** 2);
+    rows.push([dy, Math.ceil(-span - offset), Math.floor(span - offset) + 1]);
+  }
+  for (let y = 0, i = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, i++) {
+      if (!contours[i]) continue;
+      for (const [dy, left, right] of rows) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= height) continue;
+        const row = yy * width;
+        mask.fill(1, row + Math.max(0, x + left), row + Math.min(width, x + right));
+      }
+    }
+  }
+  return mask;
+}
+
+function graphicEdgeMask(data, width, height, threshold, thickness) {
+  const contours = graphicContours(data, width, height, threshold);
+  const mask = widenGraphicContours(contours, width, height, Math.ceil(thickness));
+  if (Number.isInteger(thickness)) return mask;
+  const solid = thickness >= 1 ? widenGraphicContours(contours, width, height, Math.floor(thickness)) : null;
+  // Keep half the fringe dots, including along 45-degree edges where a checkerboard can alias.
+  for (let y = 0, i = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, i++) {
+      if (((x ^ (x >> 1) ^ y) & 1) && !solid?.[i]) mask[i] = 0;
+    }
+  }
+  return mask;
+}
+
 function graphicLayout(item) {
   const { image, aspectRatio, maxHeight } = item.graphic;
-  const { inverted = false, threshold } = item;
+  const { inverted = false, threshold, edgeThreshold = 0, edgeThickness = 1 } = item;
   const height = clamp(item.size, Math.min(MIN_ITEM_HEIGHT, maxHeight), maxHeight);
   const previous = item.layout?.unrotated ?? item.layout;
-  if (previous?.height === height && previous.threshold === threshold && previous.inverted === inverted) return previous;
+  if (previous?.height === height && previous.threshold === threshold
+    && previous.edgeThreshold === edgeThreshold && previous.edgeThickness === edgeThickness
+    && previous.inverted === inverted) return previous;
   const width = clamp(Math.round(height * aspectRatio), 1, MAX_ARTWORK_WIDTH);
   const bitmap = document.createElement("canvas");
   bitmap.width = width;
@@ -3713,17 +3875,18 @@ function graphicLayout(item) {
   context.drawImage(image, 0, 0, width, height);
   const pixels = context.getImageData(0, 0, width, height);
   const { data } = pixels;
+  const contours = edgeThreshold > 0 && edgeThickness > 0
+    ? graphicEdgeMask(data, width, height, edgeThreshold, edgeThickness) : null;
   const cutoff = threshold * 100;
   for (let i = 0; i < data.length; i += 4) {
-    const brightness = 30 * data[i] + 59 * data[i + 1] + 11 * data[i + 2];
-    const dark = brightness < cutoff;
+    const dark = graphicBrightness(data, i) < cutoff || contours?.[i / 4] === 1;
     // White represents unprinted tape and leaves overlapping artwork visible.
     data[i + 3] = dark !== inverted ? 255 : 0;
     data[i] = data[i + 1] = data[i + 2] = 0;
   }
   context.putImageData(pixels, 0, 0);
   return {
-    width, height, bitmap, threshold, inverted,
+    width, height, bitmap, threshold, edgeThreshold, edgeThickness, inverted,
     draw(destination) { destination.drawImage(bitmap, 0, 0); },
   };
 }
@@ -3732,6 +3895,14 @@ function itemSizeLimits(item) {
   if (isFixedText(item)) return { min: 1, max: MAX_ARTWORK_WIDTH };
   const max = item.graphic?.maxHeight ?? MAX_ITEM_HEIGHT;
   return { min: Math.min(MIN_ITEM_HEIGHT, max), max };
+}
+
+function applyStroke(context, { kind, lineWidth, lineStyle = DEFAULT_LINE_STYLE }) {
+  context.strokeStyle = context.fillStyle;
+  context.lineWidth = lineWidth;
+  context.lineCap = kind === "line" || lineStyle === "dotted" ? "round" : "butt";
+  context.setLineDash(lineStyle === "dotted" ? [0, Math.max(3, 2.5 * lineWidth)]
+    : lineStyle === "dashed" ? [3 * lineWidth, 2 * lineWidth] : []);
 }
 
 function lineLayout(item) {
@@ -3744,9 +3915,9 @@ function lineLayout(item) {
     height: Math.abs(dy) + lineWidth,
     endpoints: [{ x, y }, { x: x + dx, y: y + dy }],
     draw(context) {
-      context.strokeStyle = context.fillStyle;
-      context.lineWidth = lineWidth;
-      context.lineCap = "round";
+      applyStroke(context, item);
+      // Center hairlines on pixels so antialiasing doesn't erase them in the print bitmap.
+      if (lineWidth === 1 && (!dx || !dy)) context.translate(.5, .5);
       context.beginPath();
       context.moveTo(x, y);
       context.lineTo(x + dx, y + dy);
@@ -3774,8 +3945,7 @@ function shapeLayout(item) {
   return {
     width, height,
     draw(context) {
-      context.strokeStyle = context.fillStyle;
-      context.lineWidth = lineWidth;
+      applyStroke(context, item);
       context.stroke(path);
     },
     hitTest(x, y) {
@@ -3852,6 +4022,7 @@ function rotateLayout(layout, rotation) {
   return {
     width: sideways ? height : width,
     height: sideways ? width : height,
+    inkPadding: layout.inkPadding,
     unrotated: layout,
     endpoints: layout.endpoints?.map(({ x, y }) => ({ x: a * x + c * y + tx, y: b * x + d * y + ty })),
     draw: draw && ((context) => {
@@ -3882,8 +4053,9 @@ function drawItems(context, entries, offsetX, offsetY) {
 function renderArtwork() {
   const printable = items.filter((item) => {
     const { x, y, layout } = item;
-    return (layout.draw || isFixedText(item)) && x + layout.width > 0
-      && x < MAX_ARTWORK_WIDTH && y < PRINTABLE_HEIGHT && y + layout.height > 0;
+    const pad = layout.inkPadding ?? 0;
+    return (layout.draw || isFixedText(item)) && x + layout.width + pad > 0
+      && x - pad < MAX_ARTWORK_WIDTH && y - pad < PRINTABLE_HEIGHT && y + layout.height + pad > 0;
   });
   if (!printable.some(({ layout }) => layout.draw)) return null;
   const { left: leftMargin, right: rightMargin } = margins;
@@ -3892,8 +4064,9 @@ function renderArtwork() {
   let fixedLeft = MAX_ARTWORK_WIDTH, fixedRight = 0;
   for (const item of printable) {
     const itemRight = item.x + item.layout.width;
-    left = Math.min(left, item.x - 1);
-    right = Math.max(right, itemRight + 1);
+    const pad = item.layout.inkPadding ?? 0;
+    left = Math.min(left, item.x - pad - 1);
+    right = Math.max(right, itemRight + pad + 1);
     if (isFixedText(item)) {
       fixedLeft = Math.min(fixedLeft, item.x);
       fixedRight = Math.max(fixedRight, itemRight);
@@ -4047,11 +4220,16 @@ function drawPreview() {
   let top = -TAPE_MARGIN, bottom = PRINTABLE_HEIGHT + TAPE_MARGIN;
   const draft = drag?.draft;
   const previewItems = draft ? [...items, draft] : items;
+  const overflow = [];
   for (const { x, y, layout } of previewItems) {
-    left = Math.min(left, x);
-    right = Math.max(right, x + layout.width);
-    top = Math.min(top, y);
-    bottom = Math.max(bottom, y + layout.height);
+    const pad = layout.inkPadding ?? 0;
+    const xMin = x - pad, xMax = x + layout.width + pad;
+    const yMin = y - pad, yMax = y + layout.height + pad;
+    left = Math.min(left, xMin);
+    right = Math.max(right, xMax);
+    top = Math.min(top, yMin);
+    bottom = Math.max(bottom, yMax);
+    if (xMin < 0 || yMin < 0 || xMax > MAX_ARTWORK_WIDTH || yMax > PRINTABLE_HEIGHT) overflow.push({ x, y, layout });
   }
 
   // Keep the editor's scroll range stable while the pointer is captured.
@@ -4110,8 +4288,6 @@ function drawPreview() {
     ctx.restore();
   }
 
-  const overflow = previewItems.filter(({ x, y, layout }) => x < 0 || y < 0
-    || x + layout.width > MAX_ARTWORK_WIDTH || y + layout.height > PRINTABLE_HEIGHT);
   if (overflow.length) {
     ctx.save();
     ctx.beginPath();
@@ -4211,6 +4387,14 @@ function updateItemPicker() {
 }
 
 function updatePlacementInputs() {
+  if (selected.kind === "text") {
+    textShadowInput.checked = selected.shadow === true;
+    textShadowSettings.hidden = !textShadowInput.checked;
+    if (!textShadowSettings.hidden) {
+      textShadowDistanceInput.value = selected.layout.inkPadding ?? textShadowDistance(selected);
+      textShadowDistanceValue.textContent = textShadowDistanceInput.value;
+    }
+  }
   const fixedText = isFixedText(selected);
   const box = hasBoxSize(selected);
   sizeControl.hidden = isShape(selected) || selected.kind === "line";
@@ -4357,10 +4541,10 @@ function updateLineSettings() {
   if (item?.kind === "line") maxWidth = Math.min(maxWidth, MAX_ARTWORK_WIDTH - Math.max(Math.abs(item.dx), Math.abs(item.dy)));
   inspector.hidden = !selected && !lineTool;
   inspector.toggleAttribute("data-no-selection", !selected);
-  lineSettings.hidden = !lineTool && item?.lineWidth === undefined;
-  lineWidthLabel.textContent = lineTool ? "New line thickness (mm)" : shape ? "Border thickness (mm)" : "Line thickness (mm)";
+  for (const control of lineSettings) control.hidden = !lineTool && item?.lineWidth === undefined;
   lineWidthInput.max = toMillimetres(maxWidth);
   lineWidthInput.value = toMillimetres(item?.lineWidth ?? lineWidth);
+  lineStyleInput.value = lineTool ? lineStyle : item?.lineStyle ?? DEFAULT_LINE_STYLE;
 }
 
 function setLineTool(active) {
@@ -4397,6 +4581,14 @@ lineWidthInput.addEventListener("keydown", (event) => {
     lineWidthInput.blur();
   }
 });
+lineStyleInput.addEventListener("change", () => {
+  const style = lineStyleInput.value;
+  if (lineTool || selected?.kind === "line") lineStyle = style;
+  if (!lineTool && selected?.lineWidth !== undefined) {
+    selected.lineStyle = style;
+    updateSelectedLayout();
+  }
+});
 document.querySelector("#add-text").addEventListener("click", () => {
   addItem({ kind: "text", text: "Text", font: "standard", weight: "400", size: 32 });
   labelInput.focus();
@@ -4405,7 +4597,7 @@ document.querySelector("#add-text").addEventListener("click", () => {
 for (const [kind, width] of [["rectangle", 48], ["ellipse", 32]]) {
   document.querySelector(`#add-${kind}`).addEventListener("click", () => {
     if (lineTool) setLineTool(false);
-    addItem({ kind, width, height: 32, lineWidth: DEFAULT_LINE_WIDTH });
+    addItem({ kind, width, height: 32, lineWidth: DEFAULT_LINE_WIDTH, lineStyle: DEFAULT_LINE_STYLE });
     canvas.focus({ preventScroll: true });
   });
 }
@@ -4462,6 +4654,16 @@ fixedSizeInput.addEventListener("change", () => {
   updateTextAlignment();
   updateSelectedLayout();
   revealSelected();
+});
+textShadowInput.addEventListener("change", () => {
+  if (selected?.kind !== "text") return;
+  selected.shadow = textShadowInput.checked;
+  updateSelectedLayout();
+});
+textShadowDistanceInput.addEventListener("input", () => {
+  if (selected?.kind !== "text" || !selected.shadow) return;
+  selected.shadowDistance = textShadowDistanceInput.valueAsNumber;
+  updateSelectedLayout();
 });
 for (const [property, buttons] of alignmentButtons) {
   for (const button of buttons) button.addEventListener("click", () => {
@@ -4547,11 +4749,11 @@ function boundedLineDelta(startX, startY, endX, endY, width, shiftKey) {
 }
 
 function updateLineDraft(point) {
-  const { startX, startY, lineWidth: width, shiftKey } = drag;
+  const { startX, startY, lineWidth: width, lineStyle, shiftKey } = drag;
   const [dx, dy] = boundedLineDelta(startX, startY, point.x, point.y, width, shiftKey);
   drag.draft = null;
   if (dx || dy) {
-    const draft = { kind: "line", dx, dy, lineWidth: width, rotation: 0,
+    const draft = { kind: "line", dx, dy, lineWidth: width, lineStyle, rotation: 0,
       x: startX + Math.min(dx, 0) - width / 2, y: startY + Math.min(dy, 0) - width / 2 };
     layoutItem(draft);
     drag.draft = draft;
@@ -4561,7 +4763,7 @@ function updateLineDraft(point) {
 
 function moveLineEndpoint(pointerDx, pointerDy) {
   const { index, moving, fixed } = drag.lineEndpoint;
-  const { lineWidth, rotation } = selected;
+  const { lineWidth, lineStyle, rotation } = selected;
   const radius = lineWidth / 2;
   const [dx, dy] = boundedLineDelta(fixed.x, fixed.y, moving.x + pointerDx, moving.y + pointerDy, lineWidth, drag.shiftKey);
   if (!dx && !dy) return;
@@ -4571,7 +4773,7 @@ function moveLineEndpoint(pointerDx, pointerDy) {
   const [a, b, c, d] = quarterTurns[rotation];
   const direction = index === 0 ? -1 : 1;
   // Convert the edited on-screen segment back to the item’s unrotated coordinates.
-  const line = { kind: "line", x, y, lineWidth, rotation,
+  const line = { kind: "line", x, y, lineWidth, lineStyle, rotation,
     dx: direction * (a * dx + b * dy), dy: direction * (c * dx + d * dy) };
   if (selected.x === x && selected.y === y && selected.dx === line.dx && selected.dy === line.dy) return;
   layoutItem(line);
@@ -4653,7 +4855,7 @@ canvas.addEventListener("pointerdown", (event) => {
     if (x < 0 || x > MAX_ARTWORK_WIDTH || y < 0 || y > PRINTABLE_HEIGHT) return;
     selectItem(null);
     drag = { id: event.pointerId, startX: Math.round(x), startY: Math.round(y),
-      clientX: event.clientX, clientY: event.clientY, drawingLine: true, shiftKey: event.shiftKey, lineWidth };
+      clientX: event.clientX, clientY: event.clientY, drawingLine: true, shiftKey: event.shiftKey, lineWidth, lineStyle };
     canvas.setPointerCapture(event.pointerId);
     return;
   }
@@ -4882,6 +5084,10 @@ const graphicStatus = document.querySelector("#graphic-status");
 const graphicAdjustments = document.querySelector("#graphic-adjustments");
 const graphicThreshold = document.querySelector("#graphic-threshold");
 const graphicThresholdValue = document.querySelector("#graphic-threshold-value");
+const graphicEdgeThreshold = document.querySelector("#graphic-edge-threshold");
+const graphicEdgeThresholdValue = document.querySelector("#graphic-edge-threshold-value");
+const graphicEdgeThickness = document.querySelector("#graphic-edge-thickness");
+const graphicEdgeThicknessValue = document.querySelector("#graphic-edge-thickness-value");
 const graphicHeight = document.querySelector("#graphic-height");
 const graphicInvert = document.querySelector("#graphic-invert");
 const graphicPreview = document.querySelector("#graphic-preview");
@@ -5006,7 +5212,8 @@ async function loadGraphic(name, load) {
     const { maxHeight } = graphic;
     const size = Math.min(PRINTABLE_HEIGHT, maxHeight);
     graphicDraft = { kind: "graphic", name, graphic, size,
-      threshold: graphicThreshold.valueAsNumber, inverted: graphicInvert.checked };
+      threshold: graphicThreshold.valueAsNumber, edgeThreshold: graphicEdgeThreshold.valueAsNumber,
+      edgeThickness: graphicEdgeThickness.valueAsNumber, inverted: graphicInvert.checked };
     graphicHeight.min = toMillimetres(Math.min(MIN_ITEM_HEIGHT, maxHeight));
     graphicHeight.max = toMillimetres(maxHeight);
     graphicHeight.value = toMillimetres(size);
@@ -5034,6 +5241,10 @@ document.querySelector("#add-graphic").addEventListener("click", () => {
   graphicFile.value = "";
   graphicThreshold.value = graphicThreshold.defaultValue;
   graphicThresholdValue.textContent = graphicThreshold.value;
+  graphicEdgeThreshold.value = graphicEdgeThreshold.defaultValue;
+  graphicEdgeThresholdValue.textContent = graphicEdgeThreshold.value;
+  graphicEdgeThickness.value = graphicEdgeThickness.defaultValue;
+  graphicEdgeThicknessValue.textContent = graphicEdgeThickness.value;
   graphicInvert.checked = false;
   showGraphicStatus("");
   graphicDialog.showModal();
@@ -5063,6 +5274,18 @@ graphicThreshold.addEventListener("input", () => {
   graphicThresholdValue.textContent = graphicThreshold.value;
   if (!graphicDraft) return;
   graphicDraft.threshold = graphicThreshold.valueAsNumber;
+  updateGraphicPreview();
+});
+graphicEdgeThreshold.addEventListener("input", () => {
+  graphicEdgeThresholdValue.textContent = graphicEdgeThreshold.value;
+  if (!graphicDraft) return;
+  graphicDraft.edgeThreshold = graphicEdgeThreshold.valueAsNumber;
+  updateGraphicPreview();
+});
+graphicEdgeThickness.addEventListener("input", () => {
+  graphicEdgeThicknessValue.textContent = graphicEdgeThickness.value;
+  if (!graphicDraft) return;
+  graphicDraft.edgeThickness = graphicEdgeThickness.valueAsNumber;
   updateGraphicPreview();
 });
 graphicInvert.addEventListener("change", () => {
@@ -5114,19 +5337,22 @@ function readDataUrl(blob) {
 function saveLabelItem(item, imageSources) {
   const { kind, x, y, rotation } = item;
   const placement = { kind, x, y, rotation };
-  if (kind === "line") return { ...placement, shapeIndex: item.shapeIndex, dx: item.dx, dy: item.dy, lineWidth: item.lineWidth };
-  if (isShape(item)) return { ...placement, shapeIndex: item.shapeIndex, width: item.width, height: item.height, lineWidth: item.lineWidth };
+  if (kind === "line" || isShape(item)) {
+    const { shapeIndex, lineWidth, lineStyle, dx, dy, width, height } = item;
+    const stroke = { ...placement, shapeIndex, lineWidth, lineStyle };
+    return kind === "line" ? { ...stroke, dx, dy } : { ...stroke, width, height };
+  }
   const geometry = { ...placement, size: item.size };
   if (kind === "text") {
-    const { text, font, weight, width, height, alignX, alignY } = item;
+    const { text, font, weight, width, height, alignX, alignY, shadow = false, shadowDistance } = item;
     const fixedSize = isFixedText(item);
-    const saved = { ...geometry, text, font, weight, fixedSize };
+    const saved = { ...geometry, text, font, weight, fixedSize, shadow, shadowDistance };
     return fixedSize ? { ...saved, width, height, alignX, alignY } : saved;
   }
   if (kind === "icon") return { ...geometry, name: item.name, svg: item.icon.source };
-  const { name, graphic: { source }, threshold, inverted } = item;
+  const { name, graphic: { source }, threshold, edgeThreshold, edgeThickness, inverted } = item;
   if (!imageSources.has(source)) imageSources.set(source, imageSources.size);
-  return { ...geometry, name, imageIndex: imageSources.get(source), threshold, inverted };
+  return { ...geometry, name, imageIndex: imageSources.get(source), threshold, edgeThreshold, edgeThickness, inverted };
 }
 
 function downloadLabel(design) {
@@ -5187,29 +5413,37 @@ async function openLabelItem(saved, images, graphics) {
     || ![0, 90, 180, 270].includes(rotation)) {
     throw new Error("Invalid position or rotation.");
   }
-  if (kind === "line") {
-    const { dx, dy, lineWidth } = saved;
-    if (!Number.isInteger(dx) || !Number.isInteger(dy) || (!dx && !dy)
-      || !isIntegerBetween(lineWidth, 1, PRINTABLE_HEIGHT)
-      || Math.max(Math.abs(dx), Math.abs(dy)) + lineWidth > MAX_ARTWORK_WIDTH) throw new Error("Invalid line settings.");
-    return { kind, x, y, rotation, dx, dy, lineWidth };
-  }
-  if (isShape(saved)) {
-    const { width, height, lineWidth } = saved;
+  if (kind === "line" || isShape(saved)) {
+    const { lineWidth, lineStyle = DEFAULT_LINE_STYLE } = saved;
+    if (!lineStyles.includes(lineStyle)) throw new Error("Invalid stroke style.");
+    const stroke = { kind, x, y, rotation, lineWidth, lineStyle };
+    if (kind === "line") {
+      const { dx, dy } = saved;
+      if (!Number.isInteger(dx) || !Number.isInteger(dy) || (!dx && !dy)
+        || !isIntegerBetween(lineWidth, 1, PRINTABLE_HEIGHT)
+        || Math.max(Math.abs(dx), Math.abs(dy)) + lineWidth > MAX_ARTWORK_WIDTH) throw new Error("Invalid line settings.");
+      return { ...stroke, dx, dy };
+    }
+    const { width, height } = saved;
     if (!isIntegerBetween(width, 3, MAX_ARTWORK_WIDTH) || !isIntegerBetween(height, 3, MAX_ITEM_HEIGHT)
       || !isIntegerBetween(lineWidth, 1, maxShapeLineWidth(width, height))) throw new Error("Invalid shape settings.");
-    return { kind, x, y, rotation, width, height, lineWidth };
+    return { ...stroke, width, height };
   }
   const geometry = { kind, x, y, size, rotation };
   switch (kind) {
     case "text": {
-      const { text, font: savedFont, weight, fixedSize = false, width, height, alignX, alignY } = saved;
+      const { text, font: savedFont, weight, fixedSize = false, shadow = false, shadowDistance, width, height, alignX, alignY } = saved;
       const font = ["nunito", "barlow-condensed"].includes(savedFont) ? "saira-extra-condensed" : savedFont;
       if (typeof text !== "string" || typeof font !== "string" || !Object.hasOwn(fontFamilies, font)
-        || !["400", "700"].includes(weight) || typeof fixedSize !== "boolean") throw new Error("Invalid text settings.");
+        || !["400", "700"].includes(weight) || typeof fixedSize !== "boolean" || typeof shadow !== "boolean") {
+        throw new Error("Invalid text settings.");
+      }
+      if (shadowDistance !== undefined && !isIntegerBetween(shadowDistance, Number(textShadowDistanceInput.min), Number(textShadowDistanceInput.max))) {
+        throw new Error("Invalid text shadow distance.");
+      }
       const fontLoad = bundledFontLoads.get(font);
       if (fontLoad && !(await fontLoad)) throw new Error("This label's font could not be loaded.");
-      const item = { ...geometry, text, font, weight, fixedSize };
+      const item = { ...geometry, text, font, weight, fixedSize, shadow, shadowDistance };
       if (!fixedSize) return item;
       if (!isIntegerBetween(width, 1, MAX_ARTWORK_WIDTH) || !isIntegerBetween(height, 1, MAX_ITEM_HEIGHT)
         || typeof alignX !== "string" || typeof alignY !== "string"
@@ -5222,12 +5456,14 @@ async function openLabelItem(saved, images, graphics) {
       return { ...geometry, name, icon: readIcon(svg) };
     }
     case "graphic": {
-      const { name, imageIndex, threshold, inverted } = saved;
+      const { name, imageIndex, threshold, edgeThreshold = 0, edgeThickness = 1, inverted } = saved;
       if (typeof name !== "string" || !isIntegerBetween(imageIndex, 0, images.length - 1)
         || typeof images[imageIndex] !== "string" || !isIntegerBetween(threshold, 0, 255)
+        || !isIntegerBetween(edgeThreshold, 0, 100)
+        || typeof edgeThickness !== "number" || !isIntegerBetween(edgeThickness * 2, 0, 20)
         || typeof inverted !== "boolean") throw new Error("Invalid graphic settings.");
       if (!graphics.has(imageIndex)) graphics.set(imageIndex, readSavedGraphic(images[imageIndex]));
-      return { ...geometry, name, threshold, inverted, graphic: await graphics.get(imageIndex) };
+      return { ...geometry, name, threshold, edgeThreshold, edgeThickness, inverted, graphic: await graphics.get(imageIndex) };
     }
     default: throw new Error("Unknown item type.");
   }
