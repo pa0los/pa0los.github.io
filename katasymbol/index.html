@@ -111,11 +111,11 @@
   .element-tools { display: flex; flex: 1 0 100%; align-items: start; gap: clamp(.25rem, 1vw, .4rem); }
   .item-tools, .add-item-tools { display: flex; min-width: 0; gap: inherit; }
   .item-tools { flex: 1; flex-wrap: wrap; }
-  .element-tools .secondary:not([hidden]), .text-alignment .secondary { display: grid; place-items: center; width: 2.85rem; padding: 0; }
+  .element-tools .secondary:not([hidden]), .text-alignment .secondary, .item-alignment .secondary { display: grid; place-items: center; width: 2.85rem; padding: 0; }
   .element-tools .secondary:not([hidden]) { min-width: 0; width: clamp(2rem, 9vw, 2.85rem); }
   #theme-toggle { flex: none; }
   .element-tools .checkbox-option { margin: 0 0 0 .35rem; min-height: 2.85rem; }
-  .element-tools svg, .text-alignment svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .element-tools svg, .text-alignment svg, .item-alignment svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   :root[data-theme="light"] .theme-sun, :root:not([data-theme="light"]) .theme-moon { display: none; }
   .item-picker { flex: 1 1 6rem; min-width: 0; }
   .item-actions { display: flex; gap: clamp(.35rem, 1.5vw, .65rem); }
@@ -126,12 +126,17 @@
   .label-files .secondary { width: auto; }
   figure { margin: 1rem 0 0; }
   .preview-margins {
-    display: grid; grid-template-columns: auto minmax(0, 5rem) minmax(0, 1fr) minmax(0, 5rem);
+    display: grid; grid-template-columns: auto minmax(0, 5rem) minmax(max-content, 1fr) minmax(0, 5rem);
     align-items: center; gap: clamp(.35rem, 1.5vw, .75rem); margin-top: .5rem;
   }
   .preview-margins span { font-size: .875rem; font-weight: 650; }
   .preview-margins input { padding-inline: .25rem; text-align: center; }
-  #right-margin { grid-column: 4; }
+  .item-alignment { display: flex; justify-content: center; gap: .25rem; }
+  .item-alignment .secondary { width: clamp(1.65rem, 7vw, 2.85rem); }
+  @media (max-width: 25rem) {
+    .preview-margins { grid-template-columns: minmax(0, 5rem) minmax(max-content, 1fr) minmax(0, 5rem); }
+    #margins-heading { grid-column: 1 / -1; }
+  }
   .preview { max-height: min(50vh, 24rem); overflow: auto; overflow-anchor: none; background: var(--preview-background); border-radius: .6rem; }
   #preview-scroll {
     width: 100%; min-height: 2.75rem; margin: 0; padding: 0; border: 0;
@@ -241,6 +246,23 @@
         <div class="preview-margins" role="group" aria-labelledby="margins-heading">
           <span id="margins-heading">Margins</span>
           <input id="left-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric" aria-label="Left margin (px)">
+          <div id="item-alignment" class="item-alignment" role="group" aria-label="Align selected item to label" aria-describedby="item-alignment-hint">
+            <button type="button" class="secondary" value="left" aria-label="Align item left" title="Align item to the left printable edge" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16m5-8h11m-7-4-4 4 4 4"/></svg>
+            </button>
+            <button type="button" class="secondary" value="center" aria-label="Center item on label" title="Center item on the label" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+            </button>
+            <button type="button" class="secondary" value="right" aria-label="Align item right" title="Align item to the right printable edge" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4v16M4 12h11m-4-4 4 4-4 4"/></svg>
+            </button>
+            <button type="button" class="secondary" value="top" aria-label="Align item up" title="Align item to the top printable edge" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16m-8 5v11m-4-7 4-4 4 4"/></svg>
+            </button>
+            <button type="button" class="secondary" value="bottom" aria-label="Align item down" title="Align item to the bottom printable edge" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M12 4v11m-4-4 4 4 4-4"/></svg>
+            </button>
+          </div>
           <input id="right-margin" type="number" min="0" max="1024" step="1" value="10" inputmode="numeric" aria-label="Right margin (px)">
         </div>
         <figcaption id="dimensions" aria-live="polite"></figcaption>
@@ -3567,6 +3589,7 @@ const xInput = document.querySelector("#item-x");
 const yInput = document.querySelector("#item-y");
 const leftMarginInput = document.querySelector("#left-margin");
 const rightMarginInput = document.querySelector("#right-margin");
+const itemAlignmentButtons = document.querySelectorAll("#item-alignment button");
 const margins = { left: leftMarginInput.valueAsNumber, right: rightMarginInput.valueAsNumber };
 const dimensions = document.querySelector("#dimensions");
 const canvas = document.querySelector("#preview");
@@ -4330,12 +4353,12 @@ function updatePrintButton() {
 
 function renderLabel() {
   printBounds = renderArtwork();
+  updateItemAlignmentButtons();
   drawPreview();
   const tapeSize = `${toMillimetres(TAPE_HEIGHT)} mm`;
-  const printHeight = `${toMillimetres(PRINTABLE_HEIGHT)} mm printable height`;
   const caption = printBounds
-    ? `${toMillimetres(printBounds.width)} × ${tapeSize} · ${printHeight} · Continuous tape`
-    : `Blank label · ${tapeSize} continuous tape · ${printHeight}`;
+    ? `Label size: ${toMillimetres(printBounds.width)} × ${tapeSize}`
+    : `Blank label · ${tapeSize}`;
   if (dimensions.textContent !== caption) dimensions.textContent = caption;
   updatePrintButton();
 }
@@ -4445,6 +4468,7 @@ function selectItem(item) {
   selected = item;
   itemPicker.value = item?.id ?? "";
   copyButton.disabled = removeButton.disabled = !item;
+  updateItemAlignmentButtons();
   updateLineSettings();
   updateTextAlignment();
   itemInvertOption.hidden = item?.kind !== "graphic";
@@ -4738,6 +4762,39 @@ function moveSelection(x, y) {
   if (previousX === selected.x && previousY === selected.y) return;
   updatePlacementInputs();
   renderLabel();
+}
+
+function needsLabelWidth(alignment) {
+  return alignment !== "top" && alignment !== "bottom";
+}
+
+function updateItemAlignmentButtons() {
+  for (const button of itemAlignmentButtons) {
+    button.disabled = !selected || (!printBounds && needsLabelWidth(button.value));
+  }
+}
+
+function alignSelectedItem(alignment) {
+  if (!selected || (!printBounds && needsLabelWidth(alignment))) return;
+  if (drag) endDrag();
+  let { x, y, layout: { width, height } } = selected;
+  // Use the bounds at click time; moving artwork can change the auto-sized tape.
+  switch (alignment) {
+    case "left": x = printBounds.worldX + margins.left; break;
+    case "center":
+      x = printBounds.worldX + (printBounds.width - width) / 2;
+      y = (PRINTABLE_HEIGHT - height) / 2;
+      break;
+    case "right": x = printBounds.worldX + printBounds.width - margins.right - width; break;
+    case "top": y = 0; break;
+    case "bottom": y = PRINTABLE_HEIGHT - height; break;
+  }
+  moveSelection(x, y);
+  revealSelected();
+}
+
+for (const button of itemAlignmentButtons) {
+  button.addEventListener("click", () => alignSelectedItem(button.value));
 }
 
 function boundedLineDelta(startX, startY, endX, endY, width, shiftKey) {

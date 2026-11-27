@@ -83,20 +83,19 @@
     #status[data-tone="busy"] #status-label { color: var(--warning); }
     #status[data-tone="error"] #status-label { color: var(--error); }
 
-    .summary-grid { display: grid; grid-template-columns: 1.8fr 1fr; gap: .85rem; }
+    .summary-grid { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: .85rem; }
     .panel { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: .85rem; padding: 1.05rem 1.15rem; }
     .output { background: linear-gradient(135deg, #14252b, #121922 72%); }
-    .output-layout { display: grid; grid-template-columns: 1fr minmax(10rem, 1.3fr); gap: 1rem; align-items: center; margin-top: .55rem; }
+    .output-layout { display: grid; grid-template-columns: clamp(11.5rem, 21vw, 14.5rem) minmax(0, 1fr); gap: 1rem; align-items: center; margin-top: .55rem; }
     .reading { display: flex; align-items: baseline; gap: .35rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .primary-reading { font-size: clamp(2.4rem, 5.5vw, 4.4rem); font-weight: 680; line-height: 1.05; letter-spacing: -.085em; }
     .unit { color: var(--muted); font-size: .9rem; font-weight: 600; }
     .primary-reading .unit { font-size: 1.3rem; letter-spacing: 0; }
     .caption, .metadata dt, .metric dt, .port-state { color: var(--muted); font-size: .875rem; }
-    .chart { min-width: 0; }
     .history-preview { display: block; width: 100%; padding: .4rem .55rem; background: #10191f; }
     .history-preview .caption { display: block; margin-top: .25rem; text-align: right; }
     .history-canvas { display: block; width: 100%; }
-    #history { height: 4.35rem; }
+    #history { height: clamp(7.5rem, 13vw, 11rem); }
     #history-dialog { width: min(66rem, calc(100% - 2rem)); }
     #expanded-history { height: clamp(12rem, 55vh, 32rem); margin-top: .85rem; background: #10191f; border-radius: .6rem; }
     .history-window-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; margin-top: .85rem; }
@@ -216,16 +215,14 @@
         <h2 id="output-title">Total output</h2>
         <div class="output-layout">
           <div>
-            <p class="reading primary-reading"><span id="total">—</span><span class="unit">W</span></p>
+            <p class="reading primary-reading"><span id="output-power">—</span><span class="unit">W</span></p>
             <p class="caption" id="active-ports">Waiting for telemetry</p>
-          </div>
-          <div class="chart">
-            <button id="expand-history" class="history-preview" type="button" aria-label="Expand power output graph" aria-haspopup="dialog">
-              <canvas id="history" class="history-canvas" aria-hidden="true"></canvas>
-              <span class="caption">Last 60 seconds · Expand</span>
-            </button>
             <div id="chart-channels" class="chart-channels" role="group" aria-label="Power output channels"></div>
           </div>
+          <button id="expand-history" class="history-preview" type="button" aria-label="Expand power output graph" aria-haspopup="dialog">
+            <canvas id="history" class="history-canvas" aria-hidden="true"></canvas>
+            <span class="caption">Last 60 seconds · Expand</span>
+          </button>
         </div>
       </section>
 
@@ -1035,7 +1032,8 @@
       status: find("status"),
       label: find("status-label"),
       detail: find("status-detail"),
-      total: find("total"),
+      outputTitle: find("output-title"),
+      outputPower: find("output-power"),
       active: find("active-ports"),
       serial: find("serial"),
       firmware: find("firmware"),
@@ -1496,6 +1494,18 @@
       return reading && now - reading.time < STALE_MS ? reading : null;
     }
 
+    function sumPower(ports) {
+      return ports.length && ports.every(Boolean) ? ports.reduce((sum, port) => sum + port.power, 0) : null;
+    }
+
+    function renderOutput(fresh) {
+      const showTotal = visibleChannels.has(0);
+      const ports = showTotal ? fresh : [...visibleChannels].map(channel => fresh[channel - 1]);
+      const title = showTotal ? "Total output" : "Selected output";
+      if (ui.outputTitle.textContent !== title) ui.outputTitle.textContent = title;
+      ui.outputPower.textContent = sumPower(ports)?.toFixed(2) ?? "—";
+    }
+
     function updateTelemetry({ ports, firmware, vendors, models }) {
       if (firmware) ui.firmware.textContent = firmware;
       const time = Date.now();
@@ -1522,10 +1532,8 @@
       ports.forEach((port, index) => {
         if (port) recordPower(index + 1, time, port.power);
       });
-      const fresh = readings.map(reading => freshReading(reading, time));
-      if (fresh.every(Boolean)) {
-        recordPower(0, time, fresh.reduce((sum, port) => sum + port.power, 0));
-      }
+      const total = sumPower(readings.map(reading => freshReading(reading, time)));
+      if (total !== null) recordPower(0, time, total);
       if (!telemetryLogged) {
         telemetryLogged = true;
         writeLog("Received A2345 port telemetry.");
@@ -1562,7 +1570,7 @@
           : "Connected · USB-A identification unavailable");
         card.device.title = device?.identifier || "";
       }
-      ui.total.textContent = complete ? reported.reduce((sum, port) => sum + port.power, 0).toFixed(2) : "—";
+      renderOutput(fresh);
       ui.active.textContent = complete
         ? active + " of 6 ports active"
         : reported.length ? reported.length + " of 6 ports reporting" : "Waiting for telemetry";
@@ -1810,7 +1818,9 @@
         if (visibleChannels.has(index)) visibleChannels.delete(index);
         else visibleChannels.add(index);
         for (const toggle of channelButtons[index]) toggle.setAttribute("aria-pressed", String(visibleChannels.has(index)));
-        drawHistory(Date.now());
+        const now = Date.now();
+        renderOutput(readings.map(reading => freshReading(reading, now)));
+        drawHistory(now);
       });
       group.append(button);
       return button;
